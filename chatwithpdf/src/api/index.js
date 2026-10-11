@@ -1,7 +1,7 @@
 import apiClient from './client';
 import { mockApi } from './mock';
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 export const authApi = {
   login: async (credentials) => {
@@ -114,6 +114,8 @@ export const chatApi = {
         const decoder = new TextDecoder();
         let accumulated = '';
         let sources = [];
+        let doneMessageId = null;
+        let doneAssistantMsg = null;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -130,9 +132,20 @@ export const chatApi = {
                 if (parsed.token) {
                   accumulated += parsed.token;
                   onToken(parsed.token, accumulated);
+                } else if (parsed.text) {
+                  accumulated += parsed.text;
+                  onToken(parsed.text, accumulated);
                 }
                 if (parsed.sources) {
                   sources = parsed.sources;
+                } else if (Array.isArray(parsed)) {
+                  sources = parsed;
+                }
+                if (parsed.messageId) {
+                  doneMessageId = parsed.messageId;
+                }
+                if (parsed.assistantMessage) {
+                  doneAssistantMsg = parsed.assistantMessage;
                 }
               } catch (e) {
                 accumulated += dataStr;
@@ -142,9 +155,18 @@ export const chatApi = {
           }
         }
 
+        const assistantMessage = doneAssistantMsg || {
+          id: doneMessageId || `msg-${Date.now()}`,
+          role: 'assistant',
+          content: accumulated,
+          sources,
+          createdAt: new Date().toISOString(),
+        };
+
         onDone({
           answer: accumulated,
           sources,
+          assistantMessage,
         });
       })
       .catch((err) => {

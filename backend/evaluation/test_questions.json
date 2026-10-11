@@ -1,0 +1,30 @@
+[
+  {
+    "id": "q1",
+    "question": "What is the standard refund window for physical goods?",
+    "expected_answer": "Customers are eligible for a full refund within 30 days of purchase upon presentation of receipt.",
+    "source_page": 1,
+    "keywords": ["refund", "30 days", "receipt", "physical goods"]
+  },
+  {
+    "id": "q2",
+    "question": "Are subscription renewals eligible for prorated refunds?",
+    "expected_answer": "Subscription renewals are non-refundable after 48 hours from the billing cycle execution date.",
+    "source_page": 2,
+    "keywords": ["subscription", "renewals", "non-refundable", "48 hours"]
+  },
+  {
+    "id": "q3",
+    "question": "What happens if a customer initiates a credit card chargeback?",
+    "expected_answer": "Initiating a dispute or chargeback suspends the account immediately until verification is completed.",
+    "source_page": 3,
+    "keywords": ["dispute", "chargeback", "suspends", "account"]
+  },
+  {
+    "id": "q4",
+    "question": "How long are audit trail logs preserved in the compliance policy?",
+    "expected_answer": "Audit trails and system access logs must be retained securely for a minimum of 7 years.",
+    "source_page": 4,
+    "keywords": ["audit", "logs", "retained", "7 years"]
+  }
+]

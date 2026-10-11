@@ -102,9 +102,9 @@ export default function Landing() {
               Start Chatting Free
             </Button>
           </Link>
-          <Link to="/dashboard" className="w-full sm:w-auto">
+          <Link to="/login" className="w-full sm:w-auto">
             <Button size="lg" variant="outline" className="w-full sm:w-auto">
-              Open Live Demo
+              Sign In to Workspace
             </Button>
           </Link>
         </div>

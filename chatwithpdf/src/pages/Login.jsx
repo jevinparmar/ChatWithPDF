@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FileText, Mail, Lock, ArrowRight, ShieldCheck, User } from 'lucide-react';
+import { FileText, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -43,10 +43,6 @@ export default function Login() {
     }
   };
 
-  const handleDemoLogin = (demoEmail) => {
-    setEmail(demoEmail);
-    setPassword('password123');
-  };
 
   return (
     <div className="min-h-screen flex bg-white dark:bg-dark-bg transition-colors">
@@ -94,30 +90,6 @@ export default function Login() {
             </p>
           </div>
 
-          {/* Quick Demo Fill Buttons */}
-          <div className="mb-6 p-3.5 rounded-xl bg-gray-50 dark:bg-dark-card border border-gray-100 dark:border-dark-border">
-            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
-              Quick Demo Fill:
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('user@test.com')}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border text-xs font-medium text-gray-700 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>User Demo</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('admin@test.com')}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-white dark:bg-dark-bg border border-gray-200 dark:border-dark-border text-xs font-medium text-gray-700 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                <span>Admin Demo</span>
-              </button>
-            </div>
-          </div>
 
           {/* Google Sign in Button (UI only) */}
           <button

@@ -1,0 +1,53 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: chatwithpdf-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-chatwithpdf}
+    ports:
+      - "${DB_HOST:-127.0.0.2}:${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-chatwithpdf}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chatwithpdf-backend
+    restart: always
+    command: sh -c "alembic upgrade head && python scripts/seed.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-chatwithpdf}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      SECRET_KEY: ${SECRET_KEY:-change_me_super_secret_jwt_key_here_at_least_32_characters}
+      ACCESS_TOKEN_EXPIRE_MINUTES: 1440
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-claude-3-5-sonnet-20241022}
+      EMBEDDING_MODEL: all-MiniLM-L6-v2
+      CHUNK_SIZE: 800
+      CHUNK_OVERLAP: 100
+      TOP_K: 4
+      SIMILARITY_THRESHOLD: 0.25
+      MAX_UPLOAD_MB: 20
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/data/uploads:/app/data/uploads
+
+volumes:
+  pgdata:
