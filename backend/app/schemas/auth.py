@@ -18,12 +18,12 @@ class UserResponse(BaseModel):
     email: str
     name: str
     role: str
-    createdAt: Optional[str] = Field(default=None, alias="created_at")
+    createdAt: Optional[str] = None
+    created_at: Optional[str] = None
 
     model_config = ConfigDict(
         populate_by_name=True,
         from_attributes=True,
-        serialize_by_alias=True,
     )
 
 

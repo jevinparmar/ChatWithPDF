@@ -132,24 +132,48 @@ export default function PdfViewer({
           style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }}
         >
           {/* Section Heading */}
-          <h1 className="text-lg font-bold text-gray-900 mb-4 tracking-tight">
-            3.1 Activation Functions
-          </h1>
-
-          {/* Body text with exact Blue Selection Highlight and Footnote [1] */}
-          <p className="text-xs sm:text-[13px] text-gray-800 leading-relaxed mb-4">
-            Activation functions define how the weighted sum of input is transformed and the choice of neural network. The choice of activation functions and network depth significantly affects training dynamics and final model accuracy.{' '}
-            <span className="bg-[#2563EB] text-white px-1 py-0.5 rounded-2xs font-normal">
-              Activation functions define how the weighted sum of input is transformed, it also network sniconecunlisation encologis transformed... The choice of functions and network depth significantly affects training dynamics and final model accuracy.
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+            <div>
+              <h1 className="text-base font-bold text-gray-900 tracking-tight">
+                {fileName}
+              </h1>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Page {currentPage} of {totalPages} &bull; Grounded Citation Reference
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+              Verified Chunk
             </span>
-            <sup className="inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full bg-blue-600 text-white text-[9px] font-bold">
-              1
-            </sup>
-          </p>
+          </div>
 
-          <p className="text-xs text-gray-600 leading-relaxed mb-6">
-            Some activist-parent operation of n errors represented in tnal model corad to consimantal apeccome right to the convenient som in the features.
-          </p>
+          {citation?.snippet ? (
+            <div className="space-y-4 mb-6">
+              <div className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-100/80">
+                <div className="text-[11px] font-semibold text-indigo-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+                  Exact Cited Passage (Page {currentPage})
+                </div>
+                <blockquote className="text-xs sm:text-[13px] text-gray-800 leading-relaxed font-serif pl-3 border-l-2 border-indigo-500 italic">
+                  <span className="bg-yellow-100 dark:bg-yellow-500/20 text-gray-900 px-1 py-0.5 rounded">
+                    "{citation.snippet}"
+                  </span>
+                  <sup className="inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full bg-indigo-600 text-white text-[9px] font-bold not-italic">
+                    1
+                  </sup>
+                </blockquote>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h2 className="text-base font-bold text-gray-900 mb-4 tracking-tight">
+                3.1 Section Contents
+              </h2>
+              <p className="text-xs sm:text-[13px] text-gray-800 leading-relaxed mb-4">
+                Document chunk content retrieved for semantic grounding.
+              </p>
+            </>
+          )}
 
           {/* Embedded Line Chart Figure matching screenshot */}
           <div className="my-6 p-4 rounded-lg bg-gray-50/80 border border-gray-200">

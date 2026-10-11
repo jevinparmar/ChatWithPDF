@@ -66,6 +66,28 @@ export default function AIMessage({
     ),
     code: ({ children }) => {
       const text = String(children);
+      const detailedMatch = text.match(/Source:\s*([^,\]]+),\s*page\s*(\d+)/i);
+      if (detailedMatch) {
+        const docName = detailedMatch[1].trim();
+        const pageNum = parseInt(detailedMatch[2], 10);
+        return (
+          <button
+            type="button"
+            onClick={() => {
+              const found = message.sources?.find((s) => s.page === pageNum);
+              if (found) {
+                setActiveCitation(found);
+              } else {
+                handleCitationClick(pageNum);
+              }
+            }}
+            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs mx-1 transition-transform active:scale-95 cursor-pointer"
+            title={`View ${docName} page ${pageNum}`}
+          >
+            [Source: {docName}, page {pageNum}]
+          </button>
+        );
+      }
       const sourceMatch = text.match(/Source:\s*Page\s*(\d+)/i);
       if (sourceMatch) {
         const pageNum = parseInt(sourceMatch[1], 10);
@@ -73,7 +95,7 @@ export default function AIMessage({
           <button
             type="button"
             onClick={() => handleCitationClick(pageNum)}
-            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs mx-1 transition-transform active:scale-95"
+            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs mx-1 transition-transform active:scale-95 cursor-pointer"
             title={`View page ${pageNum}`}
           >
             [Source: Page {pageNum}]
@@ -88,11 +110,10 @@ export default function AIMessage({
     },
   };
 
-  // Helper to replace `[Source: Page X]` with backticks so ReactMarkdown renders it with our custom code component
-  const formattedContent = (message.content || '').replace(
-    /\[Source:\s*Page\s*(\d+)\]/gi,
-    '`Source: Page $1`'
-  );
+  // Helper to replace `[Source: ...]` with backticks so ReactMarkdown renders it with our custom code component
+  const formattedContent = (message.content || '')
+    .replace(/\[Source:\s*([^,\]]+),\s*page\s*(\d+)\]/gi, '`Source: $1, page $2`')
+    .replace(/\[Source:\s*Page\s*(\d+)\]/gi, '`Source: Page $1`');
 
   return (
     <div className="w-full mb-6 animate-in fade-in slide-in-from-bottom-2 duration-150">

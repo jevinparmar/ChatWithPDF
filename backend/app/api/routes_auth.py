@@ -16,12 +16,14 @@ limiter = Limiter(key_func=get_remote_address)
 
 def build_user_response(user: User) -> UserResponse:
     """Helper to convert ORM User to UserResponse schema."""
+    iso_time = user.created_at.isoformat() if user.created_at else None
     return UserResponse(
         id=str(user.id),
         email=user.email,
         name=user.name,
         role=user.role,
-        createdAt=user.created_at.isoformat() if user.created_at else None,
+        createdAt=iso_time,
+        created_at=iso_time,
     )
 
 

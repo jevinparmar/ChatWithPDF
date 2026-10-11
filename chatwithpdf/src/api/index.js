@@ -95,7 +95,7 @@ export const chatApi = {
       return mockApi.streamMessage({ sessionId, question, documentIds, onToken, onDone, onError });
     }
 
-    // Real SSE implementation
+    // Real SSE implementation using fetch and ReadableStream
     const token = localStorage.getItem('token');
     const controller = new AbortController();
 
@@ -109,48 +109,64 @@ export const chatApi = {
       signal: controller.signal,
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error('Stream request failed');
+        if (!response.ok) {
+          const errBody = await response.text().catch(() => '');
+          throw new Error(errBody || `Stream request failed with status ${response.status}`);
+        }
+        if (!response.body) {
+          throw new Error('ReadableStream not supported on response body');
+        }
+
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let accumulated = '';
         let sources = [];
         let doneMessageId = null;
         let doneAssistantMsg = null;
+        let buffer = '';
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const dataStr = line.replace('data: ', '').trim();
-              if (dataStr === '[DONE]') continue;
-              try {
-                const parsed = JSON.parse(dataStr);
-                if (parsed.token) {
-                  accumulated += parsed.token;
-                  onToken(parsed.token, accumulated);
-                } else if (parsed.text) {
-                  accumulated += parsed.text;
-                  onToken(parsed.text, accumulated);
-                }
-                if (parsed.sources) {
-                  sources = parsed.sources;
-                } else if (Array.isArray(parsed)) {
-                  sources = parsed;
-                }
-                if (parsed.messageId) {
-                  doneMessageId = parsed.messageId;
-                }
-                if (parsed.assistantMessage) {
-                  doneAssistantMsg = parsed.assistantMessage;
-                }
-              } catch (e) {
-                accumulated += dataStr;
-                onToken(dataStr, accumulated);
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
+
+          for (const block of parts) {
+            if (!block.trim()) continue;
+            let eventType = 'message';
+            let dataStr = '';
+
+            const lines = block.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventType = line.slice(6).trim();
+              } else if (line.startsWith('data:')) {
+                dataStr = line.slice(5).trim();
               }
+            }
+
+            if (!dataStr || dataStr === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (eventType === 'sources' || parsed.sources || Array.isArray(parsed)) {
+                sources = Array.isArray(parsed) ? parsed : (parsed.sources || sources);
+              } else if (eventType === 'token' || parsed.token || parsed.text) {
+                const tokenText = parsed.token ?? parsed.text ?? '';
+                accumulated += tokenText;
+                if (onToken) onToken(tokenText, accumulated);
+              } else if (eventType === 'done' || parsed.assistantMessage || parsed.messageId) {
+                if (parsed.messageId) doneMessageId = parsed.messageId;
+                if (parsed.assistantMessage) doneAssistantMsg = parsed.assistantMessage;
+              } else if (eventType === 'error') {
+                if (onError) onError(new Error(parsed.message || 'Stream error occurred'));
+              }
+            } catch (e) {
+              // Plaintext token fallback
+              accumulated += dataStr;
+              if (onToken) onToken(dataStr, accumulated);
             }
           }
         }
@@ -163,14 +179,18 @@ export const chatApi = {
           createdAt: new Date().toISOString(),
         };
 
-        onDone({
-          answer: accumulated,
-          sources,
-          assistantMessage,
-        });
+        if (onDone) {
+          onDone({
+            answer: accumulated,
+            sources,
+            assistantMessage,
+          });
+        }
       })
       .catch((err) => {
-        if (err.name !== 'AbortError' && onError) onError(err);
+        if (err.name !== 'AbortError' && onError) {
+          onError(err);
+        }
       });
 
     return () => controller.abort();

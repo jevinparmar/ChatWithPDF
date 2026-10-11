@@ -1,57 +1,11 @@
 import { useChatStore } from '../store/chatStore';
+import { chatApi } from '../api';
 
 export function useChat() {
-  const {
-    sessions,
-    currentSessionId,
-    messages,
-    isLoadingSessions,
-    isLoadingMessages,
-    isStreaming,
-    streamingContent,
-    selectedDocumentIds,
-    activeCitation,
-    isViewerOpen,
-    ragSettings,
-    setRagSettings,
-    setActiveCitation,
-    setIsViewerOpen,
-    setSelectedDocumentIds,
-    toggleDocumentId,
-    fetchSessions,
-    selectSession,
-    createSession,
-    deleteSession,
-    renameSession,
-    sendMessage,
-    stopStreaming,
-    submitFeedback,
-  } = useChatStore();
+  const chatState = useChatStore();
 
   return {
-    sessions,
-    currentSessionId,
-    messages,
-    isLoadingSessions,
-    isLoadingMessages,
-    isStreaming,
-    streamingContent,
-    selectedDocumentIds,
-    activeCitation,
-    isViewerOpen,
-    ragSettings,
-    setRagSettings,
-    setActiveCitation,
-    setIsViewerOpen,
-    setSelectedDocumentIds,
-    toggleDocumentId,
-    fetchSessions,
-    selectSession,
-    createSession,
-    deleteSession,
-    renameSession,
-    sendMessage,
-    stopStreaming,
-    submitFeedback,
+    ...chatState,
+    streamMessage: chatApi.streamMessage,
   };
 }
