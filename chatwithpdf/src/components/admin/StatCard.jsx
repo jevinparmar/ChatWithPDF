@@ -10,7 +10,7 @@ export default function StatCard({
   description,
 }) {
   return (
-    <div className="bg-white dark:bg-dark-card border border-gray-100 dark:border-dark-border rounded-2xl p-5 shadow-subtle transition-all duration-150">
+    <div className="bg-white dark:bg-[#161920] border border-gray-200 dark:border-[#1F232B] rounded-2xl p-5 shadow-subtle transition-all duration-150">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           {title}

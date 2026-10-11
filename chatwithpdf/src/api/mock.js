@@ -29,6 +29,23 @@ let mockUsers = [
 
 let mockDocuments = [
   {
+    id: 'doc-annual-report',
+    name: 'Annual Report 2024.pdf',
+    type: 'pdf',
+    size: 5242880, // 5.0 MB
+    pages: 28,
+    status: 'ready',
+    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+    summary: 'Detailed research and performance analysis covering neural network architectures, activation function depth, inference latency, and convergence benchmarks.',
+    topics: ['Neural Architectures', 'Activation Functions', 'Inference Latency', 'Convergence Rates'],
+    suggestedQuestions: [
+      'Summarize the section on neural network architecture and its impact on performance.',
+      'What activation functions are evaluated in Section 3.1?',
+      'How does network depth influence inference latency?'
+    ],
+    url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
+  },
+  {
     id: 'doc-1',
     name: 'refund_policy_2025.pdf',
     type: 'pdf',
@@ -97,24 +114,24 @@ let mockDocuments = [
 let mockSessions = [
   {
     id: 'session-1',
-    title: 'Refund policy & exceptions',
-    documentIds: ['doc-1'],
+    title: 'Neural network architecture & performance',
+    documentIds: ['doc-annual-report'],
     createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
     updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
   },
   {
     id: 'session-2',
-    title: 'Architecture & Vector Retrieval',
-    documentIds: ['doc-2'],
+    title: 'Refund policy & exceptions',
+    documentIds: ['doc-1'],
     createdAt: new Date(Date.now() - 86400000 * 1).toISOString(),
     updatedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
   },
   {
     id: 'session-3',
-    title: 'Remote work core hours',
-    documentIds: ['doc-3'],
-    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+    title: 'Architecture & Vector Retrieval',
+    documentIds: ['doc-2'],
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
   }
 ];
 
@@ -123,33 +140,32 @@ let mockMessages = {
     {
       id: 'msg-1',
       role: 'user',
-      content: 'What is the refund policy window for products, and how do digital goods get handled?',
+      content: 'Summarize the section on neural network architecture and its impact on performance.',
       createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
     },
     {
       id: 'msg-2',
       role: 'assistant',
-      content: `According to the latest documentation, customers are entitled to request a **full refund within 30 calendar days** of product receipt.
+      content: `Based on the document, neural network architecture significantly influences performance. In Section 3.1, it states:
 
-### Key Guidelines:
-- **Physical Goods**: Must be unused, in original packaging, and returned within the 30-day window.
-- **Digital Products**: Once downloaded or license keys are generated, digital goods are generally *non-refundable* unless there is an unresolvable technical fault verified by our support engineers.
-- **Processing Time**: Standard refund approvals take 3–5 business days to credit back to the original payment method.`,
+> "The choice of activation functions and depth plays a critical role in convergence rates and generalization." [Source: Page 4]
+
+Furthermore, the analysis in Section 3.2 details how specific architectures impact latency and accuracy during inference [Source: Page 7].`,
       sources: [
         {
-          documentId: 'doc-1',
-          fileName: 'refund_policy_2025.pdf',
+          documentId: 'doc-annual-report',
+          fileName: 'Annual Report 2024.pdf',
           page: 4,
-          snippet: 'Section 4.2: Standard 30-day refund window applies to all tangible purchases. Returns initiated after 30 days are eligible only for store credit.'
+          snippet: 'Activation functions define how the weighted sum of input is transformed and the choice of neural network. The choice of activation functions and network depth significantly affects training dynamics and final model accuracy.'
         },
         {
-          documentId: 'doc-1',
-          fileName: 'refund_policy_2025.pdf',
+          documentId: 'doc-annual-report',
+          fileName: 'Annual Report 2024.pdf',
           page: 7,
-          snippet: 'Section 7.1: Digital content and downloaded software licenses are deemed consumed upon key generation and are non-refundable except under critical defect clauses.'
+          snippet: 'Section 3.2: Architecture profiles indicate latency scaling is bounded by transformer block attention heads.'
         }
       ],
-      feedback: 'up', // 'up' | 'down' | null
+      feedback: null,
       createdAt: new Date(Date.now() - 3600000 * 2 + 10000).toISOString(),
     }
   ],

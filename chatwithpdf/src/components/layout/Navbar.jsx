@@ -1,14 +1,13 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { FileText, Sun, Moon, LogIn, LayoutDashboard, MessageSquare, LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { FileText, Sun, Moon, LayoutDashboard, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
 import Button from '../ui/Button';
 
 export default function Navbar({ showNavLinks = true }) {
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const navigate = useNavigate();
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-gray-100 dark:border-dark-border bg-white/80 dark:bg-dark-bg/80 backdrop-blur-md transition-colors">

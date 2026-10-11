@@ -60,8 +60,8 @@ export default function Settings() {
 
       {/* Tab: AI & Retrieval */}
       {activeTab === 'retrieval' && (
-        <div className="bg-white dark:bg-dark-card border border-gray-100 dark:border-dark-border rounded-2xl p-6 sm:p-8 shadow-subtle space-y-6">
-          <div className="border-b border-gray-100 dark:border-dark-border pb-4">
+        <div className="bg-white dark:bg-[#161920] border border-gray-200 dark:border-[#1F232B] rounded-2xl p-6 sm:p-8 shadow-subtle space-y-6">
+          <div className="border-b border-gray-100 dark:border-[#1F232B] pb-4">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">
               RAG Pipeline Configuration
             </h3>

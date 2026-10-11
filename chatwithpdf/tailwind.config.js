@@ -21,10 +21,10 @@ export default {
           900: '#312E81',
         },
         dark: {
-          bg: '#0F1115',
-          card: '#181B21',
-          hover: '#22262E',
-          border: '#272B35',
+          bg: '#0B0D12',
+          card: '#161920',
+          hover: '#1E232C',
+          border: '#1F232B',
           muted: '#8B949E',
         },
         light: {

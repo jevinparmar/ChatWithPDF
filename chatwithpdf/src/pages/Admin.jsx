@@ -96,14 +96,14 @@ export default function Admin() {
 
       {/* Visual Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-dark-card border border-gray-100 dark:border-dark-border rounded-2xl p-6 shadow-subtle">
+        <div className="bg-white dark:bg-[#161920] border border-gray-200 dark:border-[#1F232B] rounded-2xl p-6 shadow-subtle">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4">
             Questions Handled Per Day
           </h3>
           <UsageChart data={stats.questionsPerDay} />
         </div>
 
-        <div className="bg-white dark:bg-dark-card border border-gray-100 dark:border-dark-border rounded-2xl p-6 shadow-subtle">
+        <div className="bg-white dark:bg-[#161920] border border-gray-200 dark:border-[#1F232B] rounded-2xl p-6 shadow-subtle">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4">
             Response Quality &amp; User Feedback
           </h3>
@@ -112,7 +112,7 @@ export default function Admin() {
       </div>
 
       {/* Recent Users Table */}
-      <div className="bg-white dark:bg-dark-card border border-gray-100 dark:border-dark-border rounded-2xl p-6 shadow-subtle space-y-4">
+      <div className="bg-white dark:bg-[#161920] border border-gray-200 dark:border-[#1F232B] rounded-2xl p-6 shadow-subtle space-y-4">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           Recent Active Users
         </h3>

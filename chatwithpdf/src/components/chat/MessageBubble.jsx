@@ -1,18 +1,28 @@
 import React from 'react';
+import { User } from 'lucide-react';
 import { formatDateTime } from '../../utils/formatDate';
 
 export default function MessageBubble({ message }) {
   return (
-    <div className="flex justify-end mb-4 animate-in fade-in slide-in-from-bottom-2 duration-150">
-      <div className="max-w-[85%] sm:max-w-[75%] flex flex-col items-end">
-        <div className="px-4 py-2.5 rounded-2xl rounded-tr-xs bg-indigo-600 text-white text-sm leading-relaxed shadow-subtle select-text whitespace-pre-wrap">
-          {message.content}
+    <div className="w-full mb-4 animate-in fade-in slide-in-from-bottom-2 duration-150">
+      <div className="w-full rounded-2xl bg-white dark:bg-[#181B21] border border-gray-200 dark:border-[#272B35] p-4 sm:p-5 shadow-2xs">
+        {/* User Card Header */}
+        <div className="flex items-center gap-2 mb-2 text-xs font-medium text-gray-700 dark:text-gray-300">
+          <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-[#2A2F3B] flex items-center justify-center text-gray-700 dark:text-gray-300">
+            <User className="w-3 h-3" />
+          </div>
+          <span>User</span>
+          {message.createdAt && (
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-auto">
+              {formatDateTime(message.createdAt)}
+            </span>
+          )}
         </div>
-        {message.createdAt && (
-          <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 mr-1">
-            {formatDateTime(message.createdAt)}
-          </span>
-        )}
+
+        {/* User Question Text */}
+        <p className="text-xs sm:text-sm text-gray-900 dark:text-gray-200 leading-relaxed font-normal whitespace-pre-wrap pl-7">
+          {message.content}
+        </p>
       </div>
     </div>
   );

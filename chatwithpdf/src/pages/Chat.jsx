@@ -7,7 +7,7 @@ import ChatWindow from '../components/chat/ChatWindow';
 export default function Chat() {
   const { sessionId } = useParams();
   const { fetchSessions, selectSession, sessions, currentSessionId, createSession } = useChat();
-  const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {

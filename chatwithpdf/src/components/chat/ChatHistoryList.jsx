@@ -75,8 +75,8 @@ export default function ChatHistoryList({ onSelectSession }) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-dark-card border-r border-gray-100 dark:border-dark-border w-72 shrink-0">
-      <div className="p-3 border-b border-gray-100 dark:border-dark-border">
+    <div className="flex flex-col h-full bg-white dark:bg-[#0E1015] border-r border-gray-200 dark:border-[#1F232B] w-64 shrink-0 transition-colors">
+      <div className="p-3 border-b border-gray-200 dark:border-[#1F232B]">
         <Button
           onClick={handleNewChat}
           variant="primary"

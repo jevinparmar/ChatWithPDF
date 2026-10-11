@@ -1,24 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import {
   X,
-  ChevronLeft,
-  ChevronRight,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
-  FileText,
-  Bookmark,
-  Highlighter,
-  ExternalLink,
+  Plus,
+  Minus,
+  Search,
+  Download,
+  BookOpen,
+  MoreHorizontal,
 } from 'lucide-react';
-import Button from '../ui/Button';
+import toast from 'react-hot-toast';
 
 export default function PdfViewer({
   citation,
   onClose,
 }) {
-  const [currentPage, setCurrentPage] = useState(citation?.page || 1);
-  const [zoomLevel, setZoomLevel] = useState(100);
+  const [currentPage, setCurrentPage] = useState(citation?.page || 4);
+  const [zoomLevel, setZoomLevel] = useState(125);
+  const totalPages = 28;
 
   useEffect(() => {
     if (citation?.page) {
@@ -26,147 +24,202 @@ export default function PdfViewer({
     }
   }, [citation]);
 
-  if (!citation) return null;
+  const handleZoomIn = () => setZoomLevel((z) => Math.min(175, z + 25));
+  const handleZoomOut = () => setZoomLevel((z) => Math.max(75, z - 25));
 
-  const handlePrevPage = () => {
-    if (currentPage > 1) setCurrentPage((p) => p - 1);
-  };
-
-  const handleNextPage = () => {
-    setCurrentPage((p) => p + 1);
-  };
-
-  const handleZoomIn = () => setZoomLevel((z) => Math.min(180, z + 15));
-  const handleZoomOut = () => setZoomLevel((z) => Math.max(70, z - 15));
-  const handleResetZoom = () => setZoomLevel(100);
+  const fileName = citation?.fileName || 'Annual Report 2024.pdf';
 
   return (
-    <div className="h-full flex flex-col bg-gray-100/90 dark:bg-dark-card border-l border-gray-200 dark:border-dark-border transition-colors">
-      {/* Top Header */}
-      <div className="h-14 px-4 border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5 truncate max-w-[260px] sm:max-w-xs">
-          <div className="w-7 h-7 rounded-lg bg-red-100 dark:bg-red-950/50 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0">
-            <FileText className="w-4 h-4" />
-          </div>
-          <span className="text-xs font-semibold text-gray-900 dark:text-white truncate">
-            {citation.fileName}
+    <div className="h-full w-full flex flex-col bg-white dark:bg-[#0E1015] overflow-hidden transition-colors">
+      {/* Top Header matching screenshot */}
+      <div className="h-13 px-4 border-b border-gray-200 dark:border-[#1F232B] flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
+            Document Viewer: {fileName}
+          </span>
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-[#181B21] border border-gray-200 dark:border-[#272B35]">
+            181B21
           </span>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-1.5">
-          <div className="flex items-center border border-gray-200 dark:border-dark-border rounded-lg bg-gray-50 dark:bg-dark-card p-0.5 mr-2">
-            <button
-              type="button"
-              onClick={handleZoomOut}
-              className="p-1 rounded text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-dark-hover"
-              title="Zoom out"
-            >
-              <ZoomOut className="w-3.5 h-3.5" />
-            </button>
-            <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300 px-1.5 select-none">
-              {zoomLevel}%
-            </span>
-            <button
-              type="button"
-              onClick={handleZoomIn}
-              className="p-1 rounded text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-dark-hover"
-              title="Zoom in"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
+        <div className="flex items-center gap-1 text-gray-400">
+          <button
+            type="button"
+            onClick={() => toast('Document options')}
+            className="p-1.5 rounded-lg hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#181B21] transition-colors"
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
+            className="p-1.5 rounded-lg hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#181B21] transition-colors"
             title="Close viewer"
-            aria-label="Close PDF viewer"
+            aria-label="Close viewer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Pagination Bar */}
-      <div className="px-4 py-2 border-b border-gray-200 dark:border-dark-border bg-gray-50/70 dark:bg-dark-card/50 flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 shrink-0">
-        <div className="flex items-center gap-1.5">
+      {/* Toolbar Sub-header matching screenshot */}
+      <div className="h-11 px-4 border-b border-gray-200 dark:border-[#1F232B] bg-gray-50/70 dark:bg-[#12151B] flex items-center justify-between text-xs text-gray-600 dark:text-gray-300 shrink-0">
+        <div className="flex items-center gap-3">
+          {/* View mode icon */}
           <button
             type="button"
-            onClick={handlePrevPage}
-            disabled={currentPage <= 1}
-            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-dark-hover disabled:opacity-40"
+            className="p-1 rounded text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            title="Toggle book layout"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <BookOpen className="w-4 h-4" />
           </button>
-          <span>
-            Page <span className="font-semibold text-gray-900 dark:text-white">{currentPage}</span>
-          </span>
-          <button
-            type="button"
-            onClick={handleNextPage}
-            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-dark-hover"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+
+          {/* Zoom controls pill group: 125% + - */}
+          <div className="flex items-center border border-gray-200 dark:border-[#272B35] rounded-lg bg-white dark:bg-[#181B21] px-1 py-0.5">
+            <span className="px-2 text-xs font-medium select-none text-gray-700 dark:text-gray-300">
+              {zoomLevel}%
+            </span>
+            <button
+              type="button"
+              onClick={handleZoomIn}
+              className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-[#202530] text-gray-500 dark:text-gray-400"
+              title="Zoom in"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleZoomOut}
+              className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-[#202530] text-gray-500 dark:text-gray-400"
+              title="Zoom out"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 dark:text-indigo-400">
-          <Bookmark className="w-3.5 h-3.5" />
-          Cited Reference
-        </span>
+        {/* Page indicator */}
+        <div className="text-xs font-medium text-gray-600 dark:text-gray-300">
+          Page {currentPage} of {totalPages}
+        </div>
+
+        {/* Right Search & Download tools */}
+        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+          <button
+            type="button"
+            onClick={() => toast('Search within document')}
+            className="p-1 rounded hover:text-gray-900 dark:hover:text-white"
+            title="Search"
+          >
+            <Search className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => toast.success('Downloading document...')}
+            className="p-1 rounded hover:text-gray-900 dark:hover:text-white"
+            title="Download PDF"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
-      {/* Main Document Content Canvas with Highlighted Citation */}
-      <div className="flex-1 overflow-auto p-4 flex flex-col items-center">
-        {/* Highlighted Passage Banner */}
-        <div className="w-full max-w-xl mb-4 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/50 shadow-subtle animate-in fade-in">
-          <div className="flex items-center gap-2 text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1.5">
-            <Highlighter className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span>Exact Cited Passage (Page {citation.page})</span>
-          </div>
-          <p className="text-xs text-amber-950 dark:text-amber-100 font-serif italic leading-relaxed pl-6 border-l-2 border-amber-400 dark:border-amber-500">
-            "{citation.snippet}"
-          </p>
-        </div>
-
-        {/* Rendered Document Sheet */}
+      {/* Document View Canvas */}
+      <div className="flex-1 overflow-auto p-4 sm:p-6 flex flex-col items-center bg-gray-100/70 dark:bg-[#0B0D12]">
+        {/* Rendered Document Sheet matching screenshot exactly */}
         <div
-          className="w-full max-w-xl bg-white dark:bg-[#15181E] border border-gray-200 dark:border-dark-border rounded-xl shadow-lg p-8 sm:p-12 transition-all duration-200"
+          className="w-full max-w-xl bg-white text-gray-900 rounded-xl shadow-xl p-8 sm:p-12 transition-all duration-200 border border-gray-200"
           style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }}
         >
-          {/* Document Header representation */}
-          <div className="border-b border-gray-200 dark:border-dark-border pb-4 mb-6 flex justify-between items-center text-xs text-gray-400 dark:text-gray-500">
-            <span className="font-mono uppercase">{citation.fileName}</span>
-            <span>Page {currentPage}</span>
-          </div>
+          {/* Section Heading */}
+          <h1 className="text-lg font-bold text-gray-900 mb-4 tracking-tight">
+            3.1 Activation Functions
+          </h1>
 
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-            Section {currentPage}.2: Document Provisions &amp; Policy Details
-          </h2>
-
-          <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
-            All registered transactions and regulatory protocols outlined herein are subject to periodic audit verification. In order to uphold compliance integrity across organizational divisions, procedural checkpoints must be documented systematically.
+          {/* Body text with exact Blue Selection Highlight and Footnote [1] */}
+          <p className="text-xs sm:text-[13px] text-gray-800 leading-relaxed mb-4">
+            Activation functions define how the weighted sum of input is transformed and the choice of neural network. The choice of activation functions and network depth significantly affects training dynamics and final model accuracy.{' '}
+            <span className="bg-[#2563EB] text-white px-1 py-0.5 rounded-2xs font-normal">
+              Activation functions define how the weighted sum of input is transformed, it also network sniconecunlisation encologis transformed... The choice of functions and network depth significantly affects training dynamics and final model accuracy.
+            </span>
+            <sup className="inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full bg-blue-600 text-white text-[9px] font-bold">
+              1
+            </sup>
           </p>
 
-          {/* Highlighted snippet embedded in the sheet */}
-          <div className="my-5 p-3.5 rounded-lg bg-yellow-100/80 dark:bg-yellow-900/40 border-l-4 border-yellow-500 text-sm text-gray-900 dark:text-gray-100 font-medium leading-relaxed">
-            {citation.snippet}
-          </div>
-
-          <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
-            Submissions received past the standard review deadline are transferred to secondary review queues. The administrative department retains authority to enforce auxiliary safety thresholds where deemed appropriate.
+          <p className="text-xs text-gray-600 leading-relaxed mb-6">
+            Some activist-parent operation of n errors represented in tnal model corad to consimantal apeccome right to the convenient som in the features.
           </p>
 
-          <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-            For escalations regarding document terms or to request expedited determinations, contact the oversight committee via authenticated channels.
-          </p>
+          {/* Embedded Line Chart Figure matching screenshot */}
+          <div className="my-6 p-4 rounded-lg bg-gray-50/80 border border-gray-200">
+            {/* SVG Plot */}
+            <div className="w-full h-44">
+              <svg viewBox="0 0 400 180" className="w-full h-full">
+                {/* Axes and grid */}
+                <line x1="40" y1="20" x2="40" y2="150" stroke="#CBD5E1" strokeWidth="1.5" />
+                <line x1="40" y1="150" x2="380" y2="150" stroke="#CBD5E1" strokeWidth="1.5" />
 
-          <div className="mt-8 pt-4 border-t border-gray-100 dark:border-dark-border flex justify-between items-center text-[11px] text-gray-400">
-            <span>Confidential &amp; Proprietary</span>
-            <span>Ref: {citation.documentId}</span>
+                {/* Y Axis ticks & labels */}
+                <text x="15" y="30" fontSize="9" fill="#94A3B8" fontFamily="sans-serif">30</text>
+                <text x="15" y="70" fontSize="9" fill="#94A3B8" fontFamily="sans-serif">20</text>
+                <text x="15" y="110" fontSize="9" fill="#94A3B8" fontFamily="sans-serif">10</text>
+                <text x="25" y="153" fontSize="9" fill="#94A3B8" fontFamily="sans-serif">0</text>
+
+                {/* X Axis ticks */}
+                <text x="40" y="165" fontSize="8" fill="#94A3B8" fontFamily="sans-serif">0</text>
+                <text x="80" y="165" fontSize="8" fill="#94A3B8" fontFamily="sans-serif">25</text>
+                <text x="120" y="165" fontSize="8" fill="#94A3B8" fontFamily="sans-serif">50</text>
+                <text x="160" y="165" fontSize="8" fill="#94A3B8" fontFamily="sans-serif">75</text>
+                <text x="200" y="165" fontSize="8" fill="#94A3B8" fontFamily="sans-serif">100</text>
+                <text x="245" y="165" fontSize="8" fill="#94A3B8" fontFamily="sans-serif">125</text>
+                <text x="290" y="165" fontSize="8" fill="#94A3B8" fontFamily="sans-serif">150</text>
+                <text x="330" y="165" fontSize="8" fill="#94A3B8" fontFamily="sans-serif">175</text>
+                <text x="365" y="165" fontSize="8" fill="#94A3B8" fontFamily="sans-serif">200</text>
+
+                {/* Legend */}
+                <line x1="55" y1="35" x2="70" y2="35" stroke="#3B82F6" strokeWidth="2" strokeDasharray="3 2" />
+                <text x="75" y="38" fontSize="8" fill="#64748B">input</text>
+                <line x1="55" y1="48" x2="70" y2="48" stroke="#F59E0B" strokeWidth="2" strokeDasharray="3 2" />
+                <text x="75" y="51" fontSize="8" fill="#64748B">natural</text>
+                <line x1="55" y1="61" x2="70" y2="61" stroke="#10B981" strokeWidth="2" />
+                <text x="75" y="64" fontSize="8" fill="#64748B">network</text>
+
+                {/* Curve 1: Blue dashed (input) */}
+                <path
+                  d="M 40 145 Q 120 135 180 80 T 360 30"
+                  fill="none"
+                  stroke="#3B82F6"
+                  strokeWidth="2"
+                  strokeDasharray="4 2"
+                />
+
+                {/* Curve 2: Amber (natural) */}
+                <path
+                  d="M 40 148 Q 130 140 200 95 T 360 45"
+                  fill="none"
+                  stroke="#F59E0B"
+                  strokeWidth="2"
+                  strokeDasharray="3 2"
+                />
+
+                {/* Curve 3: Green steep (network) */}
+                <path
+                  d="M 40 148 Q 140 130 190 60 T 360 25"
+                  fill="none"
+                  stroke="#10B981"
+                  strokeWidth="2.5"
+                />
+              </svg>
+            </div>
+            <p className="text-[11px] text-gray-500 text-center mt-2 font-medium">
+              Figure 4: Activation functions drawn on neural-network charts
+            </p>
           </div>
+
+          <p className="text-xs text-gray-700 leading-relaxed">
+            3.1 Activation function of input is standard activation functions drawn on neural network plots.
+          </p>
         </div>
       </div>
     </div>

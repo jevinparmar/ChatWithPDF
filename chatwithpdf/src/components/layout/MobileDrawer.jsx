@@ -38,7 +38,7 @@ export default function MobileDrawer({ isOpen, onClose }) {
           </button>
         </div>
         <div className="h-full">
-          <Sidebar onItemClick={onClose} />
+          <Sidebar onItemClick={onClose} isDrawer={true} />
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, File, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const ALLOWED_EXTENSIONS = ['pdf', 'docx', 'txt'];
@@ -63,7 +63,7 @@ export default function FileUploader({ onUpload, isUploading = false, uploadProg
         className={`relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-200 text-center ${
           isDragOver
             ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/30 scale-[1.01]'
-            : 'border-gray-200 dark:border-dark-border hover:border-indigo-400 dark:hover:border-indigo-600 bg-white dark:bg-dark-card hover:bg-gray-50/50 dark:hover:bg-dark-hover/40'
+            : 'border-gray-200 dark:border-[#1F232B] hover:border-indigo-400 dark:hover:border-indigo-600 bg-white dark:bg-[#161920] hover:bg-gray-50/50 dark:hover:bg-[#1E232C]/40'
         } ${isUploading ? 'pointer-events-none opacity-80' : ''}`}
       >
         <input

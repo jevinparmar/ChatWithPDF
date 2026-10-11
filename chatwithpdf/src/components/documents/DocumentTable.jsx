@@ -90,10 +90,10 @@ export default function DocumentTable({
 
   return (
     <>
-      <div className="w-full bg-white dark:bg-dark-card border border-gray-100 dark:border-dark-border rounded-2xl shadow-subtle overflow-hidden">
+      <div className="w-full bg-white dark:bg-[#161920] border border-gray-200 dark:border-[#1F232B] rounded-2xl shadow-subtle overflow-hidden transition-colors">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50/80 dark:bg-dark-bg/60 text-xs uppercase font-semibold text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-dark-border">
+            <thead className="bg-gray-50/80 dark:bg-[#12151B] text-xs uppercase font-semibold text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-[#1F232B]">
               <tr>
                 <th className="py-3.5 px-5">Document Name</th>
                 <th className="py-3.5 px-4 hidden sm:table-cell">Size</th>
@@ -103,11 +103,11 @@ export default function DocumentTable({
                 <th className="py-3.5 px-5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
+            <tbody className="divide-y divide-gray-100 dark:divide-[#1F232B]">
               {documents.map((doc) => (
                 <tr
                   key={doc.id}
-                  className="hover:bg-gray-50/50 dark:hover:bg-dark-hover/40 transition-colors"
+                  className="hover:bg-gray-50/50 dark:hover:bg-[#1E232C]/60 transition-colors"
                 >
                   <td className="py-3.5 px-5">
                     <Link
