@@ -4,6 +4,7 @@ import {
   FileText,
   LayoutDashboard,
   MessageSquare,
+  BookOpen,
   Settings,
   HelpCircle,
   Plus,
@@ -19,6 +20,7 @@ export default function Sidebar({ onItemClick, isDrawer = false }) {
 
   const navItems = [
     { name: 'Chat', path: '/chat', icon: MessageSquare },
+    { name: 'Study Library', path: '/library', icon: BookOpen },
     { name: 'Documents', path: '/dashboard', icon: FileText },
     { name: 'Overview', path: '/dashboard#overview', icon: LayoutDashboard },
   ];

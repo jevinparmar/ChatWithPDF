@@ -21,7 +21,7 @@ import { useChat } from '../hooks/useChat';
 import toast from 'react-hot-toast';
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, updateUserMode } = useAuth();
   const { theme, setTheme } = useTheme();
   const { ragSettings, setRagSettings } = useChat();
 
@@ -72,9 +72,14 @@ export default function Settings() {
 
           {/* Model selection */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">
-              Inference LLM Model
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                Inference LLM Model
+              </label>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 font-medium border border-emerald-200/50 dark:border-emerald-800/40">
+                Live Cloud &amp; Offline Fallback Active
+              </span>
+            </div>
             <select
               value={localSettings.model}
               onChange={(e) => setLocalSettings({ ...localSettings, model: e.target.value })}
@@ -82,9 +87,11 @@ export default function Settings() {
             >
               <option value="gpt-4o">GPT-4o (High precision &amp; multi-lingual)</option>
               <option value="claude-3-5-sonnet">Claude 3.5 Sonnet (Deep synthesis)</option>
-              <option value="llama-3-70b">Llama 3 70B (Fast local / cloud)</option>
-              <option value="gemini-1-5-pro">Gemini 1.5 Pro (Large context)</option>
+              <option value="llama-3-70b">Llama 3 70B (Fast via Groq / Ollama)</option>
             </select>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5">
+              Powered by unified OpenAI-compatible routing with zero-crash deterministic offline fallback.
+            </p>
           </div>
 
           {/* Sliders */}
@@ -100,16 +107,21 @@ export default function Settings() {
               unit="chunks"
             />
 
-            <Slider
-              label="Target Chunk Size"
-              description="Token size for document recursive character splitting"
-              min={256}
-              max={1024}
-              step={64}
-              value={localSettings.chunkSize}
-              onChange={(val) => setLocalSettings({ ...localSettings, chunkSize: val })}
-              unit="tokens"
-            />
+            <div>
+              <Slider
+                label="Target Chunk Size"
+                description="Token size for document recursive character splitting during ingestion"
+                min={256}
+                max={1024}
+                step={64}
+                value={localSettings.chunkSize}
+                onChange={(val) => setLocalSettings({ ...localSettings, chunkSize: val })}
+                unit="tokens"
+              />
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 italic">
+                * Note: Applied when uploading new documents. Previously indexed files retain their existing chunk boundaries.
+              </p>
+            </div>
           </div>
 
           {/* Toggles */}
@@ -121,12 +133,17 @@ export default function Settings() {
               onChange={(checked) => setLocalSettings({ ...localSettings, showCitations: checked })}
             />
 
-            <Toggle
-              label="Hybrid Dense + BM25 Sparse Search"
-              description="Combine semantic vector distance with reciprocal rank BM25 keyword matching"
-              checked={localSettings.hybridSearch}
-              onChange={(checked) => setLocalSettings({ ...localSettings, hybridSearch: checked })}
-            />
+            <div>
+              <Toggle
+                label="Hybrid Dense + BM25 Sparse Search"
+                description="Combine semantic vector distance with reciprocal rank BM25 keyword matching"
+                checked={localSettings.hybridSearch}
+                onChange={(checked) => setLocalSettings({ ...localSettings, hybridSearch: checked })}
+              />
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 pl-1">
+                Fuses pgvector cosine embeddings with PostgreSQL full-text search (<code className="text-[10px] bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">ts_rank_cd</code>) using Reciprocal Rank Fusion (RRF).
+              </p>
+            </div>
           </div>
 
           <div className="pt-4 flex justify-end">
@@ -166,6 +183,33 @@ export default function Settings() {
               disabled
               helperText="Managed by workspace administrator"
             />
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">
+                Default Workspace Mode
+              </label>
+              <select
+                value={user?.mode || 'student'}
+                onChange={async (e) => {
+                  try {
+                    await updateUserMode(e.target.value);
+                    toast.success(`Default mode updated to ${e.target.value}`);
+                  } catch (err) {
+                    toast.error('Failed to update default mode');
+                  }
+                }}
+                className="w-full rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-sm text-gray-900 dark:text-white px-3.5 py-2.5 outline-none focus:border-indigo-500"
+              >
+                <option value="student">Student (Friendly explanations, glossary, flashcards &amp; quizzes)</option>
+                <option value="researcher">Researcher (Academic synthesis, matrix comparison, literature review)</option>
+                <option value="business">Business (Executive summaries, policy verification, SOP checklist)</option>
+                <option value="legal">Legal (Contract breakdown, Red/Amber/Green risk badges)</option>
+                <option value="career">Career (Resume matching, achievement rewrites, interview prep)</option>
+              </select>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                New chats will automatically start in this mode. You can switch per chat anytime.
+              </p>
+            </div>
           </div>
 
           <div className="pt-4 flex justify-end">

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { documentApi } from '../api';
+import { useChatStore } from '../store/chatStore';
 import toast from 'react-hot-toast';
 
 export function useDocuments() {
@@ -38,7 +39,7 @@ export function useDocuments() {
     return () => clearInterval(interval);
   }, [documents, fetchDocuments]);
 
-  const uploadFile = async (file) => {
+  const uploadFile = async (file, role = null) => {
     setIsUploading(true);
     setUploadProgress(20);
     try {
@@ -47,7 +48,8 @@ export function useDocuments() {
         setUploadProgress((prev) => (prev < 90 ? prev + 25 : prev));
       }, 200);
 
-      const newDoc = await documentApi.uploadDocument(file);
+      const chunkSize = useChatStore.getState().ragSettings?.chunkSize || 512;
+      const newDoc = await documentApi.uploadDocument(file, role, chunkSize);
       clearInterval(progressTimer);
       setUploadProgress(100);
       toast.success(`${file.name} uploaded! Processing embeddings...`);

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/authStore';
@@ -14,9 +14,11 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import Chat from './pages/Chat';
 import DocumentDetail from './pages/DocumentDetail';
+import StudyLibrary from './pages/StudyLibrary';
 import Settings from './pages/Settings';
 import Admin from './pages/Admin';
 import NotFound from './pages/NotFound';
+import OnboardingModal from './components/modes/OnboardingModal';
 
 // Protected Route Guard
 function ProtectedRoute({ children }) {
@@ -53,12 +55,19 @@ function GuestRoute({ children }) {
 }
 
 export default function App() {
-  const { checkAuth } = useAuthStore();
+  const { checkAuth, isAuthenticated } = useAuthStore();
   const { theme } = useThemeStore();
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  useEffect(() => {
+    if (isAuthenticated && !localStorage.getItem('onboarding_completed')) {
+      setShowOnboarding(true);
+    }
+  }, [isAuthenticated]);
 
   return (
     <BrowserRouter>
@@ -69,6 +78,12 @@ export default function App() {
           className: 'dark:bg-dark-card dark:text-white border border-gray-100 dark:border-dark-border text-sm shadow-dropdown',
           duration: 3500,
         }}
+      />
+
+      {/* Onboarding Modal */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
       />
 
       <Routes>
@@ -104,6 +119,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/chat/:sessionId" element={<Chat />} />
+          <Route path="/library" element={<StudyLibrary />} />
           <Route path="/documents/:id" element={<DocumentDetail />} />
           <Route path="/settings" element={<Settings />} />
           <Route

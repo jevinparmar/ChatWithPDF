@@ -21,6 +21,11 @@ export const authApi = {
     const res = await apiClient.get('/api/auth/me');
     return res.data;
   },
+
+  updateMode: async (mode) => {
+    const res = await apiClient.patch('/api/auth/mode', { mode });
+    return res.data;
+  },
 };
 
 export const documentApi = {
@@ -36,10 +41,26 @@ export const documentApi = {
     return res.data;
   },
 
-  uploadDocument: async (file) => {
+  getDocumentContent: async (id) => {
+    const res = await apiClient.get(`/api/documents/${id}/content`);
+    return res.data;
+  },
+
+  updateDocumentRole: async (id, role) => {
+    const res = await apiClient.patch(`/api/documents/${id}/role`, { role });
+    return res.data;
+  },
+
+  uploadDocument: async (file, role = null, chunkSize = null) => {
     if (USE_MOCK) return mockApi.uploadDocument(file);
     const formData = new FormData();
     formData.append('file', file);
+    if (role) {
+      formData.append('role', role);
+    }
+    if (chunkSize) {
+      formData.append('chunk_size', chunkSize);
+    }
     const res = await apiClient.post('/api/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -84,13 +105,13 @@ export const chatApi = {
     return res.data;
   },
 
-  sendMessage: async ({ sessionId, question, documentIds }) => {
+  sendMessage: async ({ sessionId, question, documentIds, model, topK, hybridSearch }) => {
     if (USE_MOCK) return mockApi.sendMessage({ sessionId, question, documentIds });
-    const res = await apiClient.post('/api/chat', { sessionId, question, documentIds });
+    const res = await apiClient.post('/api/chat', { sessionId, question, documentIds, model, topK, hybridSearch });
     return res.data;
   },
 
-  streamMessage: ({ sessionId, question, documentIds, onToken, onDone, onError }) => {
+  streamMessage: ({ sessionId, question, documentIds, model, topK, hybridSearch, onToken, onDone, onError }) => {
     if (USE_MOCK) {
       return mockApi.streamMessage({ sessionId, question, documentIds, onToken, onDone, onError });
     }
@@ -105,7 +126,7 @@ export const chatApi = {
         'Content-Type': 'application/json',
         Authorization: token ? `Bearer ${token}` : '',
       },
-      body: JSON.stringify({ sessionId, question, documentIds }),
+      body: JSON.stringify({ sessionId, question, documentIds, model, topK, hybridSearch }),
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -196,9 +217,133 @@ export const chatApi = {
     return () => controller.abort();
   },
 
+  updateSessionMode: async (id, mode) => {
+    const res = await apiClient.patch(`/api/chat/sessions/${id}`, { mode });
+    return res.data;
+  },
+
+  streamAction: ({
+    sessionId,
+    actionId,
+    documentIds = [],
+    options = {},
+    model,
+    topK,
+    hybridSearch,
+    onProgress,
+    onSources,
+    onToken,
+    onUsage,
+    onDone,
+    onError,
+  }) => {
+    const token = localStorage.getItem('token');
+    const controller = new AbortController();
+
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/chat/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify({ sessionId, actionId, documentIds, options, model, topK, hybridSearch }),
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          const errBody = await response.text().catch(() => '');
+          throw new Error(errBody || `Action request failed with status ${response.status}`);
+        }
+        if (!response.body) {
+          throw new Error('ReadableStream not supported on response body');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let accumulated = '';
+        let sources = [];
+        let doneData = null;
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
+
+          for (const block of parts) {
+            if (!block.trim()) continue;
+            let eventType = 'message';
+            let dataStr = '';
+
+            const lines = block.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventType = line.slice(6).trim();
+              } else if (line.startsWith('data:')) {
+                dataStr = line.slice(5).trim();
+              }
+            }
+
+            if (!dataStr || dataStr === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (eventType === 'progress') {
+                if (onProgress) onProgress(parsed.step || parsed);
+              } else if (eventType === 'usage') {
+                if (onUsage) onUsage(parsed);
+              } else if (eventType === 'sources') {
+                sources = Array.isArray(parsed) ? parsed : (parsed.sources || sources);
+                if (onSources) onSources(sources);
+              } else if (eventType === 'token') {
+                const tokenText = parsed.token ?? parsed.text ?? '';
+                accumulated += tokenText;
+                if (onToken) onToken(tokenText, accumulated);
+              } else if (eventType === 'done') {
+                doneData = parsed;
+              } else if (eventType === 'error') {
+                if (onError) onError(new Error(parsed.error || parsed.message || 'Action error occurred'));
+              }
+            } catch (e) {
+              accumulated += dataStr;
+              if (onToken) onToken(dataStr, accumulated);
+            }
+          }
+        }
+
+        if (onDone) {
+          onDone({
+            content: doneData?.content || accumulated,
+            outputType: doneData?.outputType || 'markdown',
+            messageId: doneData?.messageId || `action-${Date.now()}`,
+            sources,
+            wasCached: !!doneData?.wasCached,
+            remainingToday: doneData?.remainingToday,
+          });
+        }
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError' && onError) {
+          onError(err);
+        }
+      });
+
+    return () => controller.abort();
+  },
+
   submitFeedback: async (messageId, rating) => {
     if (USE_MOCK) return mockApi.submitFeedback(messageId, rating);
     const res = await apiClient.post('/api/chat/feedback', { messageId, rating });
+    return res.data;
+  },
+};
+
+export const modesApi = {
+  getModes: async () => {
+    const res = await apiClient.get('/api/modes');
     return res.data;
   },
 };
@@ -215,5 +360,6 @@ export default {
   auth: authApi,
   documents: documentApi,
   chat: chatApi,
+  modes: modesApi,
   admin: adminApi,
 };

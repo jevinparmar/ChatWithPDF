@@ -7,6 +7,9 @@ import DocumentSelector from '../documents/DocumentSelector';
 import PdfViewer from '../documents/PdfViewer';
 import Skeleton from '../ui/Skeleton';
 import { useChat } from '../../hooks/useChat';
+import ModeSelector from '../modes/ModeSelector';
+import ReadingLevelSelector from '../modes/ReadingLevelSelector';
+import EmptyChatState from './EmptyChatState';
 import { History, MoreHorizontal, Trash2, RotateCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -25,6 +28,7 @@ export default function ChatWindow({ onToggleHistory, isHistoryOpen }) {
     stopStreaming,
     setIsViewerOpen,
     deleteSession,
+    ragSettings,
   } = useChat();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -46,6 +50,12 @@ export default function ChatWindow({ onToggleHistory, isHistoryOpen }) {
     }
   };
 
+  const modelLabels = {
+    'gpt-4o': 'GPT-4o',
+    'claude-3-5-sonnet': 'Claude 3.5 Sonnet',
+    'llama-3-70b': 'Llama 3 70B',
+  };
+
   return (
     <div className="flex-1 flex h-full overflow-hidden bg-light-bg dark:bg-[#0B0D12] p-2 sm:p-3 gap-2 sm:gap-3">
       {/* Left Chat Pane */}
@@ -54,36 +64,47 @@ export default function ChatWindow({ onToggleHistory, isHistoryOpen }) {
           isViewerOpen ? 'w-full lg:w-[48%] xl:w-[46%]' : 'w-full'
         }`}
       >
-        {/* Chat Pane Header matching screenshot */}
-        <div className="h-13 px-4 border-b border-gray-200 dark:border-[#1F232B] bg-white dark:bg-[#0E1015] flex items-center justify-between shrink-0">
+        {/* Chat Pane Header */}
+        <div className="h-14 px-3 sm:px-4 border-b border-gray-200 dark:border-[#1F232B] bg-white dark:bg-[#0E1015] flex items-center justify-between shrink-0 gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={onToggleHistory}
-              className="p-1 rounded-md text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#181B21] transition-colors"
+              className="p-1 rounded-md text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#181B21] transition-colors shrink-0"
               title="Toggle chat history"
               aria-label="Toggle chat history"
             >
               <History className="w-4 h-4" />
             </button>
 
-            <h2 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
-              Chat with PDF
-            </h2>
+            {/* Mode dropdown with colored dot */}
+            <ModeSelector />
 
-            {/* Badge matching screenshot '181B21' */}
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-[#181B21] border border-gray-200 dark:border-[#272B35]">
-              181B21
-            </span>
+            {/* Reading level selector (Student mode only) */}
+            <ReadingLevelSelector />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Active Model Indicator */}
+            <div
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100/80 dark:bg-[#181B21] border border-gray-200 dark:border-[#272B35] text-[11px] font-medium text-gray-700 dark:text-gray-300 shadow-2xs"
+              title={`Active inference model: ${modelLabels[ragSettings?.model] || ragSettings?.model || 'GPT-4o'}`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]"></span>
+              <span>{modelLabels[ragSettings?.model] || ragSettings?.model || 'GPT-4o'}</span>
+              {ragSettings?.hybridSearch && (
+                <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold uppercase tracking-wider ml-0.5">
+                  Hybrid
+                </span>
+              )}
+            </div>
+
             <DocumentSelector
               selectedIds={selectedDocumentIds}
               onChange={setSelectedDocumentIds}
             />
 
-            {/* Three-dots menu matching screenshot */}
+            {/* Three-dots menu */}
             <div className="relative">
               <button
                 type="button"
@@ -133,15 +154,7 @@ export default function ChatWindow({ onToggleHistory, isHistoryOpen }) {
               <Skeleton className="h-28 w-5/6 rounded-2xl" />
             </div>
           ) : messages.length === 0 && !isStreaming ? (
-            <div className="flex flex-col items-center justify-center min-h-[60%]">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                Chat with your documents
-              </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 text-center max-w-sm mb-4">
-                Ask any question grounded in your files. Every answer is backed by verifiable citations.
-              </p>
-              <SuggestedQuestions onSelectQuestion={sendMessage} />
-            </div>
+            <EmptyChatState />
           ) : (
             <>
               {messages.map((msg) =>

@@ -9,6 +9,7 @@ from app.api.routes_admin import router as admin_router
 from app.api.routes_auth import limiter, router as auth_router
 from app.api.routes_chat import router as chat_router
 from app.api.routes_documents import router as documents_router
+from app.api.routes_modes import router as modes_router
 from app.config import settings
 from app.core.embeddings import embedding_service
 from app.db.database import init_db_extensions
@@ -72,6 +73,7 @@ def create_app() -> FastAPI:
     app.include_router(documents_router, prefix="/api")
     app.include_router(chat_router, prefix="/api")
     app.include_router(admin_router, prefix="/api")
+    app.include_router(modes_router, prefix="/api")
 
     # Custom rate limit handler with CORS headers
     @app.exception_handler(RateLimitExceeded)

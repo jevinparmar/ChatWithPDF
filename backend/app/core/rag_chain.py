@@ -140,6 +140,9 @@ async def plan_rag_response(
     question: str,
     document_ids: Optional[List[uuid.UUID]] = None,
     llm: Optional[BaseLLMClient] = None,
+    mode: str = "student",
+    top_k: Optional[int] = None,
+    hybrid_search: Optional[bool] = None,
 ) -> RAGPlan:
     """
     Evaluates intent and document scope, returning a RAGPlan configured for one of three modes:
@@ -147,18 +150,49 @@ async def plan_rag_response(
     2. Broad + large document (>= 80,000 tokens): map-reduce summary generation / reuse.
     3. Specific question: targeted RAG with TOP_K=8 and neighboring chunk expansion.
     """
+    from app.core.modes import get_mode
+    mode_config = get_mode(mode)
     llm_client = llm or get_llm_client()
-    intent = classify_intent(question)
-    logger.info(f"Classified query '{question[:60]}' intent as: {intent}")
-
     # Resolve target document IDs
     target_docs = list(document_ids) if document_ids else []
+
+    # =========================================================================
+    # 1. PURE CHATBOT MODE (NO DOCUMENTS SELECTED)
+    # When no document is selected, act as a full-featured conversational AI chatbot.
+    # Answer any question, write code, explain concepts, chat casually, etc.
+    # =========================================================================
     if not target_docs:
-        # If none explicitly provided, query user's documents
-        res = await db.execute(
-            select(Document.id).where(Document.user_id == user_id).limit(10)
+        logger.info(f"No document selected. Running pure Chatbot Mode for user {user_id}: '{question[:60]}'")
+        chatbot_system = (
+            f"You are a versatile, friendly, and highly intelligent AI conversational chatbot operating in {mode_config.name} mode.\n"
+            f"The user has not selected any document, so you are acting as a general-purpose AI chatbot.\n\n"
+            f"INSTRUCTIONS:\n"
+            f"1. Answer ANY question the user asks: general knowledge, programming and technical debugging, mathematical calculations, creative writing, advice, and conversation.\n"
+            f"2. Explain everything thoroughly with clarity, structure, and intuitive examples.\n"
+            f"3. Do NOT mention or complain that no documents were selected or attached. Simply provide a direct, outstanding answer.\n"
+            f"4. Adapt to the user's language (English, Hindi, Hinglish, Gujarati, etc.).\n"
+            f"5. Use beautiful GitHub-flavored markdown with clear headings, bullet points, and code blocks."
         )
-        target_docs = [row[0] for row in res.all()]
+        user_content = (
+            f"User Query:\n{question}\n\n"
+            f"Please provide a complete, well-explained, and helpful answer:"
+        )
+        return RAGPlan(
+            mode="chatbot",
+            system_prompt=chatbot_system,
+            messages=[{"role": "user", "content": user_content}],
+            sources=[],
+            max_tokens=3000,
+            temperature=0.7,
+        )
+
+    # =========================================================================
+    # 2. DOCUMENT RAG MODE (USER SELECTED SPECIFIC DOCUMENT(S))
+    # Ground answers in the selected document(s), explain concepts from it,
+    # and provide verifiable citations.
+    # =========================================================================
+    intent = classify_intent(question)
+    logger.info(f"Classified query '{question[:60]}' intent as: {intent} on {len(target_docs)} selected doc(s) in mode: {mode}")
 
     if intent == "broad" and target_docs:
         # Load ALL chunks sequentially
@@ -192,36 +226,39 @@ async def plan_rag_response(
                 snippet = c.content[:200].replace("\n", " ").strip()
                 if len(c.content) > 200:
                     snippet += "..."
+                loc_type = c.location_type or "page"
+                loc_label = c.location_label or (
+                    f"Slide {c.page_number}" if loc_type == "slide"
+                    else f"Sheet {c.page_number}" if loc_type == "sheet"
+                    else f"Page {c.page_number}"
+                )
                 sources.append(
                     SourceItem(
                         documentId=c.document_id,
                         fileName=c.file_name,
                         page=c.page_number,
+                        locationType=loc_type,
+                        locationLabel=loc_label,
                         snippet=snippet,
                     )
                 )
 
         # Mode 1: Broad + Small Document (< 80,000 estimated tokens)
         if estimated_tokens < 80000:
-            doc_page_texts: dict[tuple[str, int], list[str]] = defaultdict(list)
-            for c in all_chunks:
-                doc_page_texts[(c.file_name, c.page_number)].append(c.content)
+            from app.core.full_document import rebuild_full_text_with_locations
+            full_text, _, rebuilt_sources = rebuild_full_text_with_locations(all_chunks)
+            if rebuilt_sources:
+                sources = rebuilt_sources
 
-            full_text_blocks = []
-            for (file_name, page_num), parts in doc_page_texts.items():
-                page_text = "\n".join(parts)
-                full_text_blocks.append(f"[Page {page_num}]\n{page_text}")
-
-            full_text = "\n\n".join(full_text_blocks)
             user_content = (
                 f"Document Text:\n{full_text}\n\n"
                 f"Question: {question}\n\n"
-                f"Please explain every topic in order with headings, definitions, examples, and key takeaways:"
+                f"Please explain thoroughly according to your mode style with headings, definitions, examples, and key takeaways:"
             )
 
             return RAGPlan(
                 mode="broad_small",
-                system_prompt=TEACHER_SYSTEM_PROMPT,
+                system_prompt=mode_config.system_prompt,
                 messages=[{"role": "user", "content": user_content}],
                 sources=sources,
                 max_tokens=4000,
@@ -266,33 +303,47 @@ async def plan_rag_response(
             temperature=0.2,
         )
 
-    # Mode 3: Specific Question (Normal RAG with TOP_K=8 and Neighboring Chunks)
+    chosen_top_k = top_k if top_k is not None and top_k > 0 else mode_config.retrieval_settings.get("top_k", settings.TOP_K)
+    chosen_hybrid = bool(hybrid_search) if hybrid_search is not None else False
+
+    # Mode 3: Specific Question (Normal RAG with dynamic TOP_K and optional Hybrid search)
     chunks, sources = await retrieve_relevant_chunks(
         db=db,
         user_id=user_id,
         question=question,
         document_ids=target_docs if target_docs else None,
-        top_k=8,
+        top_k=chosen_top_k,
         include_neighbors=True,
+        hybrid_search=chosen_hybrid,
     )
 
-    if not chunks:
-        context_str = "No relevant context found."
-    else:
+    if chunks:
         context_blocks = []
         for c in chunks:
-            # Notice: no [Source: ...] header in chunk text to prevent model echo
-            context_blocks.append(f"Page {c.page_number} ({c.file_name}):\n{c.content}")
+            loc_label = c.location_label or f"Page {c.page_number}"
+            context_blocks.append(f"{loc_label} ({c.file_name}):\n{c.content}")
         context_str = "\n\n---\n\n".join(context_blocks)
+        user_content = (
+            f"Context from Selected Document(s):\n{context_str}\n\n"
+            f"Question: {question}\n\n"
+            f"Please provide a comprehensive, well-explained answer based on the selected document content above. "
+            f"Explain concepts clearly in your own words, break down technical points, provide intuitive examples, "
+            f"and reference the appropriate locations (e.g. Page X, Slide Y)."
+        )
+    else:
+        user_content = (
+            f"Question: {question}\n\n"
+            f"Note: The user selected document(s), but no directly matching passage was found in the file for this question.\n"
+            f"Explain what the document covers if relevant, and then answer the question thoroughly using your general knowledge so the user is never left without an answer."
+        )
 
-    user_content = f"Context:\n{context_str}\n\nQuestion: {question}\n\nAnswer in your own words:"
     return RAGPlan(
         mode="specific",
-        system_prompt=SPECIFIC_RAG_SYSTEM_PROMPT,
+        system_prompt=mode_config.system_prompt,
         messages=[{"role": "user", "content": user_content}],
         sources=sources,
-        max_tokens=2000,
-        temperature=0.1,
+        max_tokens=2500,
+        temperature=0.2,
     )
 
 
@@ -330,13 +381,12 @@ def build_rag_prompt(
     chunks: List[RetrievedChunk],
 ) -> Tuple[str, List[dict]]:
     """Builds prompt for legacy callers."""
-    if not chunks:
-        context_str = "No relevant context found."
-    else:
+    if chunks:
         context_blocks = [f"Page {c.page_number} ({c.file_name}):\n{c.content}" for c in chunks]
         context_str = "\n\n---\n\n".join(context_blocks)
-
-    user_content = f"Context:\n{context_str}\n\nQuestion: {question}\n\nAnswer:"
+        user_content = f"Context:\n{context_str}\n\nQuestion: {question}\n\nAnswer in your own words:"
+    else:
+        user_content = f"Question: {question}\n\nAnswer helpfully and thoroughly in your own words:"
     return SPECIFIC_RAG_SYSTEM_PROMPT, [{"role": "user", "content": user_content}]
 
 

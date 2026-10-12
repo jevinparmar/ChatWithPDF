@@ -18,6 +18,7 @@ class UserResponse(BaseModel):
     email: str
     name: str
     role: str
+    mode: Optional[str] = "student"
     createdAt: Optional[str] = None
     created_at: Optional[str] = None
 
@@ -27,6 +28,11 @@ class UserResponse(BaseModel):
     )
 
 
+class UserUpdateMode(BaseModel):
+    mode: str = Field(..., pattern="^(student|researcher|business|legal|career)$")
+
+
 class AuthResponse(BaseModel):
     token: str
     user: UserResponse
+

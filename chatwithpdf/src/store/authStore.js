@@ -81,4 +81,16 @@ export const useAuthStore = create((set, get) => ({
       get().logout();
     }
   },
+
+  updateUserMode: async (mode) => {
+    try {
+      const updated = await authApi.updateMode(mode);
+      localStorage.setItem('user', JSON.stringify(updated));
+      set({ user: updated });
+      return updated;
+    } catch (err) {
+      console.error('Failed to update user mode:', err);
+      throw err;
+    }
+  },
 }));

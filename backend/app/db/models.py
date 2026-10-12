@@ -46,6 +46,7 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(50), default="user", nullable=False)
+    mode = Column(String(50), default="student", nullable=False)
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -55,6 +56,7 @@ class User(Base):
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
     sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
     feedback = relationship("Feedback", back_populates="user", cascade="all, delete-orphan")
+    generated_outputs = relationship("GeneratedOutput", back_populates="user", cascade="all, delete-orphan")
 
 
 class Document(Base):
@@ -73,6 +75,8 @@ class Document(Base):
     file_path = Column(String(1024), nullable=False)
     file_size = Column(BigInteger, nullable=False)
     file_type = Column(String(20), nullable=False)
+    location_type = Column(String(50), default="page", nullable=False)  # page | slide | section | sheet
+    role = Column(String(50), nullable=True)  # resume | job_description | contract | paper | notes | other
     page_count = Column(Integer, default=0, nullable=False)
     status = Column(String(50), default="processing", nullable=False)  # processing, ready, failed
     error_message = Column(Text, nullable=True)
@@ -110,6 +114,8 @@ class Chunk(Base):
     content = Column(Text, nullable=False)
     page_number = Column(Integer, nullable=False, default=1)
     chunk_index = Column(Integer, nullable=False, default=0)
+    location_type = Column(String(50), default="page", nullable=False)  # page | slide | section | sheet
+    location_label = Column(String(255), nullable=True)  # Page 4 | Slide 7 | Section: Introduction | Sheet: Sales
     embedding = Column(Vector(384), nullable=False)
 
     document = relationship("Document", back_populates="chunks")
@@ -139,6 +145,7 @@ class ChatSession(Base):
         nullable=False,
     )
     title = Column(String(255), default="New conversation", nullable=False)
+    mode = Column(String(50), default="student", nullable=False)  # student | researcher | business | legal | career
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -158,6 +165,38 @@ class ChatSession(Base):
         back_populates="session",
         cascade="all, delete-orphan",
         order_by="Message.created_at",
+        lazy="selectin",
+    )
+
+
+class GeneratedOutput(Base):
+    """Cached full-file or mode action output to guarantee instant responses on identical queries."""
+
+    __tablename__ = "generated_outputs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    document_ids_hash = Column(String(64), nullable=False, index=True)
+    mode = Column(String(50), nullable=False)
+    action = Column(String(100), nullable=False)
+    options = Column(JSONB, default=dict)
+    content = Column(Text, nullable=False)
+    document_ids = Column(JSONB, default=list)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    user = relationship("User", back_populates="generated_outputs")
+
+    __table_args__ = (
+        Index("idx_generated_outputs_lookup", "user_id", "document_ids_hash", "mode", "action"),
     )
 
 
@@ -219,3 +258,5 @@ class Feedback(Base):
 
     message = relationship("Message", back_populates="feedback")
     user = relationship("User", back_populates="feedback")
+
+

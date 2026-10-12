@@ -241,13 +241,121 @@ All API routes are prefixed with `/api`. Responses are serialized in JSON with c
 | Method | Endpoint | Request Body | Response | Description | Rate Limit |
 |---|---|---|---|---|---|
 | `GET` | `/api/chat/sessions` | None | `List[ChatSessionResponse]` | List conversation sessions | — |
-| `POST` | `/api/chat/sessions` | `{title?, documentIds[]}` | `ChatSessionResponse` | Create new conversation session | — |
-| `PATCH` | `/api/chat/sessions/{id}` | `{title}` | `ChatSessionResponse` | Rename conversation session | — |
+| `POST` | `/api/chat/sessions` | `{title?, documentIds[], mode?}` | `ChatSessionResponse` | Create new conversation session | — |
+| `PATCH` | `/api/chat/sessions/{id}` | `{title?, mode?}` | `ChatSessionResponse` | Rename session or update active mode | — |
 | `DELETE` | `/api/chat/sessions/{id}` | None | `{success: true}` | Delete conversation session | — |
 | `GET` | `/api/chat/sessions/{id}/messages` | None | `List[ChatMessageResponse]` | List messages in session | — |
 | `POST` | `/api/chat` | `{sessionId, question, documentIds[]}` | `{messageId, answer, sources[]}` | Non-streaming RAG question answering | 20 / min |
 | `POST` | `/api/chat/stream` | `{sessionId, question, documentIds[]}` | `text/event-stream` (SSE) | Token-by-token streaming RAG answer with citations | 20 / min |
+| `POST` | `/api/chat/action` | `{sessionId, actionId, documentIds[], options{}}` | `text/event-stream` (SSE) | Execute specialized mode quick action with SSE progress | 20 / min |
 | `POST` | `/api/chat/feedback` | `{messageId, rating, comment?}` | `{success: true}` | Submit thumbs up/down user feedback | — |
+
+### Modes Registry (`/api/modes`)
+| Method | Endpoint | Response | Description |
+|---|---|---|---|
+| `GET` | `/api/modes` | `List[ModeConfig]` | Return all 5 active mode configs, quick actions, prompts, and options schemas |
+| `PATCH` | `/api/auth/mode` | `{mode: "student"|"researcher"|"business"|"legal"|"career"}` | Set user default onboarding mode |
+
+---
+
+## 🎭 Persona Modes System
+
+ChatWithPDF adapts its personality, toolsets, retrieval engine, and UI widgets to the user's role.
+
+### The 5 Modes
+
+| Mode | Accent | Persona & Answer Style | Key Capabilities |
+|---|---|---|---|
+| **Student** | Indigo (`#4F46E5`) | Friendly teacher, simple words, step-by-step analogies, technical terms defined first. Hindi / Hinglish / Gujarati support. | Full-file syllabus explainer, flashcard flip deck, interactive quiz player with retry, exam 2/5/10 mark questions, mind map, study library. |
+| **Researcher** | Teal (`#0D9488`) | Precise, academic, careful wording of certainty. | Structured paper cards, cross-paper comparison matrices, agreement/gap analysis, literature reviews, BibTeX citation export. |
+| **Business** | Slate (`#475569`) | Direct, executive, action-oriented. Quotes verbatim policy sentences (<25 words) with locations. | Executive summaries, policy finder, step-by-step SOP checklists, FAQ generator, action item tracker, onboarding guides. |
+| **Legal** | Amber (`#D97706`) | Plain-English, exact. Mandatory legal disclaimer on all outputs. | Contract summary, clause finder, deadline & notice period table, obligation matrix, Red / Amber / Green risk badges, clause rewrites. |
+| **Career** | Pink (`#DB2777`) | Tactical recruiter & career coach. Requires Resume + Job Description. | Match score gauge (0-100%), skill breakdown, Before/After achievement rewrites, tailored cover letter, interview Q&A prep. |
+
+### Complete Quick Actions Matrix
+
+| Mode | Action ID | Action Label | Needs | Output Type | Description |
+|---|---|---|---|---|---|
+| **Student** | `explain_full` | Complete Syllabus Explanation | 1+ files | Markdown | Structured 5-part teacher explanation covering every topic in order |
+| **Student** | `short_notes` | Short Revision Notes | 1+ files | Markdown | High-yield revision bullet points + last-minute revision box |
+| **Student** | `key_points` | Top Key Points | 1+ files | Markdown | Ranked core concepts and key takeaways |
+| **Student** | `flashcards` | Interactive Flashcards | 1+ files | Flashcards | 3D flip card deck with "Got it" vs "Review again" mastery tracking |
+| **Student** | `quiz` | Interactive Quiz | 1+ files | Quiz | 1-by-1 question UI with instant feedback, explanations, score, and retry |
+| **Student** | `exam_questions` | Exam Questions & Answers | 1+ files | Markdown | 2-mark, 5-mark, and 10-mark questions suited for university exams |
+| **Student** | `mind_map` | Hierarchical Mind Map | 1+ files | Mind Map | Collapsible topic outline tree |
+| **Student** | `eli10` | Explain Like I'm 10 | 1+ files | Markdown | Simple analogies and real-life examples |
+| **Researcher** | `paper_summary` | Structured Paper Card | 1+ files | Markdown | Objective, Method, Dataset, Results, Limitations, Future work |
+| **Researcher** | `compare_papers` | Compare Papers Matrix | 2+ files | Comparison | Side-by-side comparison table (Problem, Method, Data, Results) |
+| **Researcher** | `find_agreements_and_gaps` | Agreements & Gaps | 2+ files | Markdown | Points of consensus, divergence, and unaddressed questions |
+| **Researcher** | `literature_review` | Literature Review Draft | 1+ files | Markdown | Thematic synthesis draft with natural citations |
+| **Researcher** | `extract_findings` | Extract Findings Table | 1+ files | Markdown | Claims, supporting empirical evidence, and locations |
+| **Business** | `executive_summary` | Executive Summary | 1+ files | Markdown | 1-page high-level brief: key decisions, figures, and risks |
+| **Business** | `find_policy` | Policy Verification | 1+ files | Markdown | Strict answer quoting exact sentence (<25 words) and location |
+| **Business** | `step_by_step` | SOP Checklist | 1+ files | Markdown | Numbered execution checklist from operational manual |
+| **Business** | `faq_generator` | Document FAQs | 1+ files | Markdown | 10-15 anticipated questions & concise answers |
+| **Business** | `action_items` | Action Items Matrix | 1+ files | Markdown | Table of tasks, owners, and deliverable deadlines |
+| **Business** | `new_employee_guide` | New Employee Guide | 1+ files | Markdown | Onboarding walkthrough written for new hires |
+| **Legal** | `contract_summary` | Contract Summary | 1+ files | Markdown | Parties, term, payment, obligations, termination, governing law |
+| **Legal** | `clause_finder` | Clause Finder | 1+ files | Markdown | Quotes exact clause and translates into plain English |
+| **Legal** | `deadlines_and_dates` | Deadlines & Dates Table | 1+ files | Markdown | Chronological calendar of renewal dates and notice periods |
+| **Legal** | `obligations` | Party Obligations Matrix | 1+ files | Markdown | Clear obligations table partitioned by signing party |
+| **Legal** | `risk_check` | Risk Check & Badges | 1+ files | Risk Badges | Red / Amber / Green badges flagging hazardous clauses |
+| **Legal** | `plain_english` | Plain English Rewrite | 1+ files | Markdown | Translates dense legalese into clear layperson terms |
+| **Legal** | `compare_versions` | Compare Versions | 2 files | Markdown | Added, removed, and modified clauses between drafts |
+| **Career** | `match_score` | Resume vs JD Match Score | 2 files | Match Score | Radial gauge (0-100%), skill breakdown, and keyword match lists |
+| **Career** | `improve_resume` | Achievement Rewrites | 2 files | Career | Side-by-side Before/After action-verb bullet point rewrites |
+| **Career** | `tailored_summary` | Tailored Executive Summary | 2 files | Markdown | Targeted 3-line elevator pitch matching JD requirements |
+| **Career** | `cover_letter` | Tailored Cover Letter | 2 files | Markdown | Compelling letter strictly grounded in verified resume facts |
+| **Career** | `interview_prep` | Interview Q&A Preparation | 2 files | Markdown | Behavioral, technical, and "Tell me about yourself" responses |
+| **Career** | `skill_gap` | Skill Gap & Learning Roadmap | 2 files | Markdown | Prioritized list of missing skills with recommended learning order |
+
+---
+
+## 📁 Universal File Support & Ingestion
+
+ChatWithPDF supports ingestion across all common document formats:
+
+- **PDF**: PyMuPDF extraction with automatic OCR fallback via `pytesseract` for scanned pages.
+- **DOCX**: `python-docx` parser preserving headings, nested bullet lists, and tables with estimated page numbers.
+- **PPTX**: `python-pptx` parser treating each slide as a unit, extracting slide titles, body shapes, tables, and speaker notes.
+- **XLSX & CSV**: Structured sheet and CSV parser converting rows and columns into clean, header-aligned text units.
+- **TXT & MD**: UTF-8 markdown and plain text readers.
+- **Images (PNG, JPG)**: OCR text recognition via `pytesseract`.
+- **Location Citations**: Chunks and citations dynamically identify `location_type` (`page`, `slide`, `section`, `sheet`) and output readable labels like `(Page 4)`, `(Slide 7)`, `(Section: Introduction)`, or `(Sheet: Sales)`.
+- **Role Tags**: Documents can be tagged with roles: `resume`, `job_description`, `contract`, `paper`, `notes`, or `other`.
+
+---
+
+## ⚡ Full-Document Understanding Engine
+
+Located in `app/core/full_document.py`, this engine guarantees complete multi-page document comprehension:
+- Rebuilds full text sequentially with `[File - Location]` headers.
+- **Single-Pass**: Documents under ~80,000 tokens (character count / 4) are analyzed in a single unified prompt.
+- **Map-Reduce**: Documents exceeding 80,000 tokens are processed in 10-unit batches, summarized, and synthesized into a master response.
+- **Real-Time Progress**: Emits Server-Sent Events (`event: progress, data: {"step": "..."}`) to the frontend.
+- **Output Caching**: Cached in `generated_outputs` table using a deterministic SHA256 document hash, mode, action, and options. Cache entries are automatically invalidated if a document is deleted.
+
+---
+
+## 🧪 Demo Seed Script
+
+To demo all 5 modes immediately with pre-loaded sample documents:
+
+```bash
+cd backend
+python scripts/seed_modes_demo.py
+```
+
+This script:
+1. Creates the demo account: `demo@chatwithpdf.com` (password: `password123`).
+2. Ingests 5 sample files in `backend/tests/samples/`:
+   - `sample_notes.pdf` (Student Mode: Distributed Systems notes)
+   - `sample_presentation.pptx` (Business/Researcher: Q3 Product Strategy deck)
+   - `sample_contract.docx` (Legal Mode: Master Services Agreement)
+   - `sample_resume.pdf` (Career Mode: Senior Backend Engineer resume)
+   - `sample_job_description.docx` (Career Mode: Staff Full Stack Engineer job description)
+3. Configures 5 ready-to-use mode chat sessions with pre-selected documents.
+
 
 ### Admin Insights (`/api/admin`)
 | Method | Endpoint | Headers | Response | Description |

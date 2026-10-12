@@ -16,6 +16,7 @@ import Skeleton from '../ui/Skeleton';
 import EmptyState from '../ui/EmptyState';
 import { formatFileSize } from '../../utils/formatFileSize';
 import { formatDate } from '../../utils/formatDate';
+import { getFileFormatMeta } from '../../utils/fileIcons';
 import { useChat } from '../../hooks/useChat';
 
 export default function DocumentTable({
@@ -50,11 +51,19 @@ export default function DocumentTable({
     }
   };
 
-  const getDocIcon = (type = '') => {
-    const t = type.toLowerCase();
-    if (t === 'pdf') return <FileText className="w-4 h-4 text-red-500" />;
-    if (t === 'docx') return <FileSpreadsheet className="w-4 h-4 text-blue-500" />;
-    return <FileCode className="w-4 h-4 text-emerald-500" />;
+  const getDocIcon = (type = '', name = '') => {
+    const meta = getFileFormatMeta(name || type);
+    const IconComponent = meta.icon;
+    return <IconComponent className={`w-4 h-4 ${meta.colorClass.split(' ')[0]}`} />;
+  };
+
+  const getLocationLabel = (doc) => {
+    const loc = doc.locationType || 'page';
+    const count = doc.pages || 0;
+    if (loc === 'slide') return `${count} slide${count === 1 ? '' : 's'}`;
+    if (loc === 'sheet') return `${count} sheet${count === 1 ? '' : 's'}`;
+    if (loc === 'section') return `${count} sec`;
+    return `${count} pg${count === 1 ? '' : 's'}`;
   };
 
   if (isLoading) {
@@ -81,7 +90,7 @@ export default function DocumentTable({
       <EmptyState
         icon={FileText}
         title="No documents yet"
-        description="Upload your first PDF, DOCX, or TXT file above to index it and start chatting."
+        description="Upload your first PDF, DOCX, PPTX, or spreadsheet above to index it and start chatting."
         actionLabel="Upload document"
         onAction={onUploadClick}
       />
@@ -96,8 +105,9 @@ export default function DocumentTable({
             <thead className="bg-gray-50/80 dark:bg-[#12151B] text-xs uppercase font-semibold text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-[#1F232B]">
               <tr>
                 <th className="py-3.5 px-5">Document Name</th>
+                <th className="py-3.5 px-4 hidden sm:table-cell">Role</th>
                 <th className="py-3.5 px-4 hidden sm:table-cell">Size</th>
-                <th className="py-3.5 px-4 hidden md:table-cell">Pages</th>
+                <th className="py-3.5 px-4 hidden md:table-cell">Pages / Units</th>
                 <th className="py-3.5 px-4 hidden lg:table-cell">Uploaded</th>
                 <th className="py-3.5 px-4">Status</th>
                 <th className="py-3.5 px-5 text-right">Actions</th>
@@ -115,18 +125,27 @@ export default function DocumentTable({
                       className="flex items-center gap-3 group max-w-xs md:max-w-sm truncate"
                     >
                       <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-border flex items-center justify-center shrink-0">
-                        {getDocIcon(doc.type)}
+                        {getDocIcon(doc.type, doc.name)}
                       </div>
                       <span className="font-medium text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 truncate">
                         {doc.name}
                       </span>
                     </Link>
                   </td>
+                  <td className="py-3.5 px-4 hidden sm:table-cell">
+                    {doc.role ? (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                        {doc.role.replace('_', ' ')}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
                   <td className="py-3.5 px-4 text-gray-500 dark:text-gray-400 hidden sm:table-cell">
                     {formatFileSize(doc.size)}
                   </td>
                   <td className="py-3.5 px-4 text-gray-500 dark:text-gray-400 hidden md:table-cell">
-                    {doc.pages || '-'}
+                    {getLocationLabel(doc)}
                   </td>
                   <td className="py-3.5 px-4 text-gray-500 dark:text-gray-400 hidden lg:table-cell">
                     {formatDate(doc.createdAt)}

@@ -26,12 +26,14 @@ async def create_chat_session(
     db: AsyncSession,
     user_id: uuid.UUID,
     title: Optional[str] = "New conversation",
+    mode: Optional[str] = "student",
     document_ids: Optional[List[uuid.UUID]] = None,
 ) -> ChatSession:
     """Creates a new chat session linked with selected user documents."""
     session = ChatSession(
         user_id=user_id,
         title=title or "New conversation",
+        mode=mode or "student",
     )
     db.add(session)
     await db.flush()
@@ -74,13 +76,17 @@ async def rename_chat_session(
     db: AsyncSession,
     user_id: uuid.UUID,
     session_id: uuid.UUID,
-    title: str,
+    title: Optional[str] = None,
+    mode: Optional[str] = None,
 ) -> Optional[ChatSession]:
-    """Renames an existing session."""
+    """Updates title and/or mode for an existing session."""
     session = await get_session_by_id(db, user_id, session_id)
     if not session:
         return None
-    session.title = title.strip()
+    if title is not None:
+        session.title = title.strip()
+    if mode is not None:
+        session.mode = mode.strip()
     session.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(session)

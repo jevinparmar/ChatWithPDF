@@ -8,6 +8,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.api.deps import get_current_user, get_db
+from app.core.action_runner import execute_mode_action_stream
 from app.core.llm import clean_inline_sources, get_llm_client
 from app.core.rag_chain import (
     execute_rag_flow,
@@ -19,6 +20,7 @@ from app.core.retriever import retrieve_relevant_chunks
 from app.db.database import AsyncSessionLocal
 from app.db.models import ChatSession, Message, User
 from app.schemas.chat import (
+    ChatActionRequest,
     ChatMessageResponse,
     ChatRequest,
     ChatResponse,
@@ -50,6 +52,7 @@ def serialize_session(session: ChatSession) -> ChatSessionResponse:
     return ChatSessionResponse(
         id=str(session.id),
         title=session.title,
+        mode=session.mode or "student",
         documentIds=doc_ids,
         createdAt=session.created_at.isoformat() if session.created_at else "",
         updatedAt=session.updated_at.isoformat() if session.updated_at else "",
@@ -104,7 +107,10 @@ async def create_session(
 ) -> ChatSessionResponse:
     """Creates a new conversation session."""
     doc_uuids = [uuid.UUID(d) for d in data.documentIds] if data.documentIds else None
-    session = await create_chat_session(db, current_user.id, data.title, doc_uuids)
+    session_mode = data.mode or current_user.mode or "student"
+    session = await create_chat_session(
+        db, current_user.id, data.title, mode=session_mode, document_ids=doc_uuids
+    )
     return serialize_session(session)
 
 
@@ -115,8 +121,10 @@ async def rename_session(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ChatSessionResponse:
-    """Renames an existing chat session."""
-    session = await rename_chat_session(db, current_user.id, session_id, data.title)
+    """Renames or updates mode for an existing chat session."""
+    session = await rename_chat_session(
+        db, current_user.id, session_id, title=data.title, mode=data.mode
+    )
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
     return serialize_session(session)
@@ -165,13 +173,11 @@ async def send_message(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
     history = await get_session_messages(db, current_user.id, session_uuid)
-    llm = get_llm_client()
+    llm = get_llm_client(data.model)
 
     standalone_question = await rewrite_followup_question(data.question, history, llm)
 
-    target_docs = [uuid.UUID(d) for d in data.documentIds] if data.documentIds else None
-    if not target_docs and session.documents:
-        target_docs = [d.id for d in session.documents]
+    target_docs = [uuid.UUID(d) for d in data.documentIds] if data.documentIds else []
 
     plan = await plan_rag_response(
         db=db,
@@ -179,6 +185,9 @@ async def send_message(
         question=standalone_question,
         document_ids=target_docs,
         llm=llm,
+        mode=session.mode or "student",
+        top_k=data.topK,
+        hybrid_search=data.hybridSearch,
     )
 
     answer = await execute_rag_flow(plan, llm)
@@ -220,12 +229,10 @@ async def stream_message(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
     history = await get_session_messages(db, current_user.id, session_uuid)
-    llm = get_llm_client()
+    llm = get_llm_client(data.model)
     standalone_question = await rewrite_followup_question(data.question, history, llm)
 
-    target_docs = [uuid.UUID(d) for d in data.documentIds] if data.documentIds else None
-    if not target_docs and session.documents:
-        target_docs = [d.id for d in session.documents]
+    target_docs = [uuid.UUID(d) for d in data.documentIds] if data.documentIds else []
 
     plan = await plan_rag_response(
         db=db,
@@ -233,6 +240,9 @@ async def stream_message(
         question=standalone_question,
         document_ids=target_docs,
         llm=llm,
+        mode=session.mode or "student",
+        top_k=data.topK,
+        hybrid_search=data.hybridSearch,
     )
     sources = plan.sources
 
@@ -270,6 +280,62 @@ async def stream_message(
         except Exception as e:
             logger.exception(f"Error in SSE stream: {e}")
             err_payload = json.dumps({"message": str(e)})
+            yield f"event: error\ndata: {err_payload}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/action")
+@limiter.limit("20/minute")
+async def run_chat_action(
+    request: Request,
+    data: ChatActionRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Executes a mode quick action and streams progress/result via SSE."""
+    try:
+        session_uuid = uuid.UUID(data.sessionId)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid session ID")
+
+    session = await get_session_by_id(db, current_user.id, session_uuid)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    target_docs = [uuid.UUID(d) for d in data.documentIds] if data.documentIds else None
+    if not target_docs and session.documents:
+        target_docs = [d.id for d in session.documents]
+
+    async def event_generator() -> AsyncIterator[str]:
+        try:
+            llm = get_llm_client(data.model)
+            async for chunk in execute_mode_action_stream(
+                db=db,
+                user_id=current_user.id,
+                session=session,
+                action_id=data.actionId,
+                document_ids=target_docs or [],
+                options=data.options or {},
+                llm=llm,
+            ):
+                if await request.is_disconnected():
+                    logger.info("Client disconnected during action execution")
+                    break
+                evt = chunk.get("event", "message")
+                payload = json.dumps(chunk.get("data", {}))
+                yield f"event: {evt}\ndata: {payload}\n\n"
+        except Exception as e:
+            logger.exception(f"Error in mode action execution: {e}")
+            err_payload = json.dumps({"error": str(e), "message": str(e)})
             yield f"event: error\ndata: {err_payload}\n\n"
 
     return StreamingResponse(

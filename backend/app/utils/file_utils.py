@@ -6,7 +6,22 @@ from fastapi import HTTPException, UploadFile, status
 
 from app.config import settings
 
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+ALLOWED_EXTENSIONS = {
+    ".pdf",
+    ".docx",
+    ".doc",
+    ".pptx",
+    ".ppt",
+    ".txt",
+    ".md",
+    ".csv",
+    ".xlsx",
+    ".xls",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+}
 
 
 def sanitize_filename(filename: str) -> str:
@@ -28,7 +43,7 @@ def validate_file_upload(file: UploadFile) -> str:
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported file format '{ext}'. Only PDF, DOCX, and TXT are supported.",
+            detail=f"Unsupported file format '{ext}'. Supported formats: PDF, DOCX, PPTX, TXT, MD, CSV, XLSX, PNG, JPG, JPEG.",
         )
 
     # Convert extension without dot to normalized type

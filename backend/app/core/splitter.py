@@ -11,6 +11,8 @@ class ChunkData:
     page_number: int
     chunk_index: int
     content: str
+    location_type: str = "page"
+    location_label: str = ""
 
 
 def split_document_pages(
@@ -18,7 +20,7 @@ def split_document_pages(
     chunk_size: int = settings.CHUNK_SIZE,
     chunk_overlap: int = settings.CHUNK_OVERLAP,
 ) -> List[ChunkData]:
-    """Splits document pages into chunks while preserving page numbers and order."""
+    """Splits document pages into chunks while preserving page numbers, location metadata, and order."""
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
@@ -33,6 +35,7 @@ def split_document_pages(
         if not clean_text:
             continue
 
+        loc_label = page.location_label or f"Page {page.page_number}"
         page_chunks = splitter.split_text(clean_text)
         for piece in page_chunks:
             p_clean = piece.strip()
@@ -42,8 +45,11 @@ def split_document_pages(
                         page_number=page.page_number,
                         chunk_index=chunk_counter,
                         content=p_clean,
+                        location_type=page.location_type,
+                        location_label=loc_label,
                     )
                 )
                 chunk_counter += 1
 
     return chunks
+

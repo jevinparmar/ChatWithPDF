@@ -2,7 +2,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 import uuid
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -21,6 +21,8 @@ class RetrievedChunk:
     chunk_index: int
     content: str
     similarity: float
+    location_type: str = "page"
+    location_label: Optional[str] = None
 
 
 async def load_all_document_chunks(
@@ -54,6 +56,8 @@ async def load_all_document_chunks(
                 chunk_index=chunk.chunk_index,
                 content=chunk.content,
                 similarity=1.0,
+                location_type=chunk.location_type or "page",
+                location_label=chunk.location_label or f"Page {chunk.page_number}",
             )
         )
     return chunks
@@ -67,11 +71,14 @@ async def retrieve_relevant_chunks(
     top_k: int = settings.TOP_K,
     similarity_threshold: float = settings.SIMILARITY_THRESHOLD,
     include_neighbors: bool = True,
+    hybrid_search: bool = False,
 ) -> Tuple[List[RetrievedChunk], List[SourceItem]]:
     """
-    Performs cosine vector search in PostgreSQL using pgvector <=> operator with top_k=8.
-    Expands the matched chunks by including their immediate neighboring chunks (previous and next)
-    within the same document to provide full conversational context without mid-sentence cutoffs.
+    Retrieves most relevant chunks using:
+    1. Dense Vector Search: pgvector cosine distance (<=>) with HNSW indexing.
+    2. Optional Sparse Keyword Search (Hybrid): PostgreSQL ts_rank_cd full-text search.
+    3. Reciprocal Rank Fusion (RRF) to merge dense & sparse ranks if hybrid is enabled.
+    4. Adjacent neighbor expansion to provide coherent context without sentence cutoffs.
     """
     query_vector = await embedding_service.embed_query(question)
 
@@ -91,10 +98,10 @@ async def retrieve_relevant_chunks(
     stmt = stmt.order_by(cosine_dist.asc()).limit(top_k)
 
     result = await db.execute(stmt)
-    rows = result.all()
+    dense_rows = result.all()
 
     # Fallback if strict threshold produces 0 rows: take top matches by cosine distance
-    if not rows and document_ids:
+    if not dense_rows and document_ids:
         relaxed_stmt = (
             select(Chunk, Document.file_name, similarity)
             .join(Document, Chunk.document_id == Document.id)
@@ -104,9 +111,9 @@ async def retrieve_relevant_chunks(
             .limit(top_k)
         )
         res = await db.execute(relaxed_stmt)
-        rows = res.all()
+        dense_rows = res.all()
 
-        if not rows:
+        if not dense_rows:
             intro_stmt = (
                 select(Chunk, Document.file_name, similarity)
                 .join(Document, Chunk.document_id == Document.id)
@@ -116,7 +123,47 @@ async def retrieve_relevant_chunks(
                 .limit(top_k)
             )
             res = await db.execute(intro_stmt)
-            rows = res.all()
+            dense_rows = res.all()
+
+    # 2. Sparse Keyword Search (Hybrid BM25 / ts_rank)
+    keyword_rows = []
+    if hybrid_search and question.strip():
+        try:
+            ts_query = func.plainto_tsquery("english", question)
+            ts_vector = func.to_tsvector("english", Chunk.content)
+            ts_rank = func.ts_rank_cd(ts_vector, ts_query).label("ts_rank")
+            kw_stmt = (
+                select(Chunk, Document.file_name, ts_rank)
+                .join(Document, Chunk.document_id == Document.id)
+                .where(Chunk.user_id == user_id)
+                .where(ts_vector.op("@@")(ts_query))
+            )
+            if document_ids:
+                kw_stmt = kw_stmt.where(Chunk.document_id.in_(document_ids))
+            kw_stmt = kw_stmt.order_by(ts_rank.desc()).limit(top_k)
+            kw_res = await db.execute(kw_stmt)
+            keyword_rows = kw_res.all()
+        except Exception as e:
+            logger.warning(f"Keyword search in hybrid mode failed: {e}")
+
+    # 3. Reciprocal Rank Fusion (RRF)
+    if hybrid_search and keyword_rows:
+        rrf_scores: dict[int, float] = defaultdict(float)
+        chunk_lookup: dict[int, Tuple[Chunk, str, float]] = {}
+
+        for rank, (c, fname, sim) in enumerate(dense_rows, 1):
+            rrf_scores[c.id] += 1.0 / (60 + rank)
+            chunk_lookup[c.id] = (c, fname, float(sim))
+
+        for rank, (c, fname, rank_score) in enumerate(keyword_rows, 1):
+            rrf_scores[c.id] += 1.0 / (60 + rank)
+            if c.id not in chunk_lookup:
+                chunk_lookup[c.id] = (c, fname, float(rank_score))
+
+        sorted_ids = sorted(rrf_scores.keys(), key=lambda cid: rrf_scores[cid], reverse=True)[:top_k]
+        rows = [chunk_lookup[cid] for cid in sorted_ids]
+    else:
+        rows = dense_rows
 
     if not rows:
         return [], []
@@ -139,11 +186,19 @@ async def retrieve_relevant_chunks(
             snippet = chunk.content[:200].replace("\n", " ").strip()
             if len(chunk.content) > 200:
                 snippet += "..."
+            loc_type = chunk.location_type or "page"
+            loc_label = chunk.location_label or (
+                f"Slide {chunk.page_number}" if loc_type == "slide"
+                else f"Sheet {chunk.page_number}" if loc_type == "sheet"
+                else f"Page {chunk.page_number}"
+            )
             sources.append(
                 SourceItem(
                     documentId=str(chunk.document_id),
                     fileName=file_name,
                     page=chunk.page_number,
+                    locationType=loc_type,
+                    locationLabel=loc_label,
                     snippet=snippet,
                 )
             )
@@ -185,6 +240,8 @@ async def retrieve_relevant_chunks(
                     chunk_index=c.chunk_index,
                     content=c.content,
                     similarity=sim,
+                    location_type=c.location_type or "page",
+                    location_label=c.location_label or f"Page {c.page_number}",
                 )
             )
         return retrieved, sources
@@ -199,6 +256,8 @@ async def retrieve_relevant_chunks(
             chunk_index=c.chunk_index,
             content=c.content,
             similarity=float(sim),
+            location_type=c.location_type or "page",
+            location_label=c.location_label or f"Page {c.page_number}",
         )
         for c, f_name, sim in rows
     ]

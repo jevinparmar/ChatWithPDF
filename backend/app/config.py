@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
     ANTHROPIC_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: Optional[str] = None
+    GROQ_API_KEY: str = ""
+    OLLAMA_BASE_URL: str = "http://localhost:11434/v1"
+
     LLM_MODEL: str = "claude-3-5-sonnet-20241022"
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     CHUNK_SIZE: int = 800

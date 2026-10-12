@@ -8,7 +8,13 @@ from slowapi.util import get_remote_address
 from app.api.deps import get_current_user, get_db
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.db.models import User
-from app.schemas.auth import AuthResponse, UserLoginRequest, UserResponse, UserSignUpRequest
+from app.schemas.auth import (
+    AuthResponse,
+    UserLoginRequest,
+    UserResponse,
+    UserSignUpRequest,
+    UserUpdateMode,
+)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 limiter = Limiter(key_func=get_remote_address)
@@ -22,6 +28,7 @@ def build_user_response(user: User) -> UserResponse:
         email=user.email,
         name=user.name,
         role=user.role,
+        mode=getattr(user, "mode", "student") or "student",
         createdAt=iso_time,
         created_at=iso_time,
     )
@@ -45,6 +52,7 @@ async def signup(
         email=data.email.lower().strip(),
         password_hash=get_password_hash(data.password),
         role="user",
+        mode="student",
     )
     db.add(new_user)
     await db.commit()
@@ -81,3 +89,17 @@ async def get_me(
 ) -> UserResponse:
     """Returns the profile of the currently logged-in user."""
     return build_user_response(current_user)
+
+
+@router.patch("/mode", response_model=UserResponse)
+async def update_user_mode(
+    data: UserUpdateMode,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> UserResponse:
+    """Updates the user's default onboarding mode preference."""
+    current_user.mode = data.mode
+    await db.commit()
+    await db.refresh(current_user)
+    return build_user_response(current_user)
+

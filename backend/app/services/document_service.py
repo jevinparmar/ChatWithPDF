@@ -26,6 +26,7 @@ async def save_uploaded_document(
     db: AsyncSession,
     user_id: uuid.UUID,
     file: UploadFile,
+    role: Optional[str] = None,
 ) -> Document:
     """Validates and saves uploaded file to disk and inserts initial Document DB record."""
     file_type = validate_file_upload(file)
@@ -46,6 +47,7 @@ async def save_uploaded_document(
         file_path=str(storage_path),
         file_size=file_size,
         file_type=file_type,
+        role=role,
         page_count=0,
         status="processing",
     )
@@ -55,7 +57,7 @@ async def save_uploaded_document(
     return doc
 
 
-async def index_document_background(document_id: uuid.UUID) -> None:
+async def index_document_background(document_id: uuid.UUID, chunk_size: Optional[int] = None) -> None:
     """Background task: parses document pages, computes chunks + embeddings, and calls LLM for summary."""
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(Document).where(Document.id == document_id))
@@ -65,7 +67,7 @@ async def index_document_background(document_id: uuid.UUID) -> None:
             return
 
         try:
-            logger.info(f"Starting background indexing for document {doc.id} ({doc.file_name})")
+            logger.info(f"Starting background indexing for document {doc.id} ({doc.file_name}) [chunk_size={chunk_size}]")
             file_path = Path(doc.file_path)
             if not file_path.exists():
                 raise FileNotFoundError(f"File not found on disk: {doc.file_path}")
@@ -73,9 +75,12 @@ async def index_document_background(document_id: uuid.UUID) -> None:
             # 1. Extract pages asynchronously
             pages = await extract_document_pages_async(file_path, doc.file_type)
             doc.page_count = len(pages)
+            if pages:
+                doc.location_type = pages[0].location_type
 
-            # 2. Split into chunks
-            chunk_items = split_document_pages(pages)
+            # 2. Split into chunks using custom target chunk size if provided
+            effective_chunk_size = chunk_size if chunk_size and 100 <= chunk_size <= 4000 else settings.CHUNK_SIZE
+            chunk_items = split_document_pages(pages, chunk_size=effective_chunk_size)
             if not chunk_items:
                 logger.warning(f"No text extracted from document {doc.id}")
 
@@ -83,7 +88,7 @@ async def index_document_background(document_id: uuid.UUID) -> None:
             texts = [c.content for c in chunk_items]
             embeddings = await embedding_service.embed_batch(texts)
 
-            # 4. Insert chunks into DB
+            # 4. Insert chunks into DB with location metadata
             chunks_to_insert = [
                 Chunk(
                     document_id=doc.id,
@@ -91,6 +96,8 @@ async def index_document_background(document_id: uuid.UUID) -> None:
                     content=c.content,
                     page_number=c.page_number,
                     chunk_index=c.chunk_index,
+                    location_type=c.location_type,
+                    location_label=c.location_label,
                     embedding=embeddings[idx],
                 )
                 for idx, c in enumerate(chunk_items)
@@ -213,14 +220,92 @@ async def delete_document(
     if not doc:
         return False
 
-    file_path = Path(doc.file_path)
+    # Invalidate cached generated_outputs for this document
+    try:
+        from app.db.models import GeneratedOutput
+        doc_id_str = str(document_id)
+        stmt_del_cache = select(GeneratedOutput).where(GeneratedOutput.user_id == user_id)
+        cache_res = await db.execute(stmt_del_cache)
+        for co in cache_res.scalars().all():
+            doc_ids_list = co.document_ids or []
+            if doc_id_str in doc_ids_list or doc_id_str in (co.document_ids_hash or ""):
+                await db.delete(co)
+    except Exception as e:
+        logger.warning(f"Error invalidating generated_outputs cache: {e}")
+
+    file_path_str = doc.file_path
     await db.delete(doc)
     await db.commit()
 
     try:
-        if file_path.exists():
-            os.remove(file_path)
+        if file_path_str:
+            p = Path(file_path_str)
+            if p.exists():
+                os.remove(p)
     except Exception as e:
-        logger.warning(f"Failed to delete file from disk {file_path}: {e}")
+        logger.warning(f"Failed to delete file from disk {file_path_str}: {e}")
 
     return True
+
+
+async def update_document_role(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    document_id: uuid.UUID,
+    role: Optional[str],
+) -> Optional[Document]:
+    """Updates the role tag (resume, job_description, contract, etc.) of a document."""
+    doc = await get_document_by_id(db, user_id, document_id)
+    if not doc:
+        return None
+
+    doc.role = role
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+async def get_document_full_text(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    document_id: uuid.UUID,
+) -> dict:
+    """Returns all chunks formatted with location labels for previewing non-PDF files."""
+    doc = await get_document_by_id(db, user_id, document_id)
+    if not doc:
+        return {}
+
+    stmt = (
+        select(Chunk)
+        .where(Chunk.document_id == document_id, Chunk.user_id == user_id)
+        .order_by(Chunk.page_number.asc(), Chunk.chunk_index.asc())
+    )
+    result = await db.execute(stmt)
+    chunks = result.scalars().all()
+
+    sections = []
+    current_label = None
+    current_lines = []
+
+    for c in chunks:
+        label = c.location_label or f"Page {c.page_number}"
+        if label != current_label:
+            if current_label is not None:
+                sections.append({"label": current_label, "page": c.page_number, "text": "\n\n".join(current_lines)})
+            current_label = label
+            current_lines = [c.content]
+        else:
+            current_lines.append(c.content)
+
+    if current_label is not None:
+        sections.append({"label": current_label, "page": chunks[-1].page_number if chunks else 1, "text": "\n\n".join(current_lines)})
+
+    return {
+        "documentId": str(doc.id),
+        "fileName": doc.file_name,
+        "fileType": doc.file_type,
+        "locationType": doc.location_type or "page",
+        "role": doc.role,
+        "sections": sections,
+    }
+
