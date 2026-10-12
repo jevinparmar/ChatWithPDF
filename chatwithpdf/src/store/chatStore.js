@@ -74,7 +74,7 @@ export const useChatStore = create((set, get) => ({
       return sessions;
     } catch (err) {
       set({ isLoadingSessions: false });
-      throw err;
+      return [];
     }
   },
 
@@ -84,15 +84,12 @@ export const useChatStore = create((set, get) => ({
       const messages = await chatApi.getMessages(sessionId);
       const session = get().sessions.find((s) => s.id === sessionId);
       
-      // Find initial citation from assistant message if available
-      const initialCitation = messages.find((m) => m.role === 'assistant' && m.sources && m.sources.length > 0)?.sources?.[0] || null;
-
       set({
         messages,
         isLoadingMessages: false,
         selectedDocumentIds: session?.documentIds || [],
-        activeCitation: initialCitation,
-        isViewerOpen: !!initialCitation,
+        activeCitation: null,
+        isViewerOpen: false,
       });
     } catch (err) {
       set({ isLoadingMessages: false });

@@ -25,11 +25,11 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     CHUNK_SIZE: int = 800
     CHUNK_OVERLAP: int = 100
-    TOP_K: int = 4
-    SIMILARITY_THRESHOLD: float = 0.25
+    TOP_K: int = 8
+    SIMILARITY_THRESHOLD: float = 0.15
     MAX_UPLOAD_MB: int = 20
 
-    CORS_ORIGINS: Union[List[str], str] = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: Union[List[str], str] = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:3000"
     UPLOAD_DIR: Path = Path("data/uploads")
 
     RATE_LIMIT_LOGIN: str = "5/minute"

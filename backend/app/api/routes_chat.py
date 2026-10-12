@@ -8,8 +8,13 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.api.deps import get_current_user, get_db
-from app.core.llm import get_llm_client
-from app.core.rag_chain import execute_rag_chain, rewrite_followup_question, stream_rag_chain
+from app.core.llm import clean_inline_sources, get_llm_client
+from app.core.rag_chain import (
+    execute_rag_flow,
+    plan_rag_response,
+    rewrite_followup_question,
+    stream_rag_flow,
+)
 from app.core.retriever import retrieve_relevant_chunks
 from app.db.database import AsyncSessionLocal
 from app.db.models import ChatSession, Message, User
@@ -168,14 +173,16 @@ async def send_message(
     if not target_docs and session.documents:
         target_docs = [d.id for d in session.documents]
 
-    chunks, sources = await retrieve_relevant_chunks(
+    plan = await plan_rag_response(
         db=db,
         user_id=current_user.id,
         question=standalone_question,
         document_ids=target_docs,
+        llm=llm,
     )
 
-    answer = await execute_rag_chain(standalone_question, chunks, llm)
+    answer = await execute_rag_flow(plan, llm)
+    sources = plan.sources
 
     user_msg, assistant_msg = await save_chat_turn(
         db=db,
@@ -202,7 +209,7 @@ async def stream_message(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Server-Sent Events streaming RAG response."""
+    """Server-Sent Events streaming RAG response supporting all 3 answer modes."""
     try:
         session_uuid = uuid.UUID(data.sessionId)
     except ValueError:
@@ -220,12 +227,14 @@ async def stream_message(
     if not target_docs and session.documents:
         target_docs = [d.id for d in session.documents]
 
-    chunks, sources = await retrieve_relevant_chunks(
+    plan = await plan_rag_response(
         db=db,
         user_id=current_user.id,
         question=standalone_question,
         document_ids=target_docs,
+        llm=llm,
     )
+    sources = plan.sources
 
     async def event_generator() -> AsyncIterator[str]:
         accumulated_answer = ""
@@ -235,7 +244,7 @@ async def stream_message(
             yield f"event: sources\ndata: {sources_json}\n\n"
 
             # 2. Stream tokens
-            async for token in stream_rag_chain(standalone_question, chunks, llm):
+            async for token in stream_rag_flow(plan, llm):
                 if await request.is_disconnected():
                     logger.info("Client disconnected during stream")
                     break
@@ -243,12 +252,13 @@ async def stream_message(
                 token_payload = json.dumps({"text": token, "token": token})
                 yield f"event: token\ndata: {token_payload}\n\n"
 
-            # 3. Save completed message
+            # 3. Clean and save completed message
+            clean_answer = clean_inline_sources(accumulated_answer)
             _, assistant_msg = await save_chat_turn(
                 db=db,
                 session_id=session_uuid,
                 question=data.question,
-                answer=accumulated_answer,
+                answer=clean_answer,
                 sources=sources,
             )
             done_payload = json.dumps({

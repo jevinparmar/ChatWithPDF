@@ -31,7 +31,7 @@ export const useAuthStore = create((set, get) => ({
       });
       return data;
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Login failed';
+      const msg = err.response?.data?.detail || err.response?.data?.message || err.message || 'Login failed';
       set({ error: msg, isLoading: false });
       throw new Error(msg);
     }
@@ -51,7 +51,7 @@ export const useAuthStore = create((set, get) => ({
       });
       return data;
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Signup failed';
+      const msg = err.response?.data?.detail || err.response?.data?.message || err.message || 'Signup failed';
       set({ error: msg, isLoading: false });
       throw new Error(msg);
     }

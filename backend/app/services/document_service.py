@@ -8,9 +8,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.embeddings import embedding_service
-from app.core.llm import get_llm_client
+from app.core.llm import clean_inline_sources, get_llm_client
 from app.core.loader import extract_document_pages_async
-from app.core.prompts import DOCUMENT_SUMMARY_PROMPT
+from app.core.prompts import (
+    DOCUMENT_SUMMARY_PROMPT,
+    MAP_REDUCE_COMBINE_PROMPT,
+    MAP_REDUCE_SECTION_PROMPT,
+)
 from app.core.splitter import split_document_pages
 from app.db.database import AsyncSessionLocal
 from app.db.models import Chunk, Document
@@ -94,33 +98,78 @@ async def index_document_background(document_id: uuid.UUID) -> None:
             if chunks_to_insert:
                 db.add_all(chunks_to_insert)
 
-            # 5. Generate summary and suggested questions using LLM
-            sample_text = "\n\n".join([p.text for p in pages[:4] if p.text.strip()])[:3500]
-            if sample_text:
-                llm = get_llm_client()
-                response_str = await llm.generate(
-                    system=DOCUMENT_SUMMARY_PROMPT,
-                    messages=[{"role": "user", "content": f"Document text:\n{sample_text}"}],
-                    max_tokens=512,
+            # 5. Generate summary using map-reduce (if > 10 pages) or single pass
+            llm = get_llm_client()
+            if doc.page_count > 10:
+                logger.info(f"Generating map-reduce summary for {doc.file_name} ({doc.page_count} pages)")
+                group_summaries = []
+                pages_per_group = 10
+                for i in range(0, len(pages), pages_per_group):
+                    group = pages[i : i + pages_per_group]
+                    start_p = group[0].page_number
+                    end_p = group[-1].page_number
+                    group_text = "\n\n".join(
+                        f"[Page {p.page_number}]\n{p.text}" for p in group if p.text.strip()
+                    )
+                    if not group_text:
+                        continue
+                    sec_prompt = (
+                        f"Document Section (Pages {start_p} to {end_p}):\n\n{group_text}\n\n"
+                        f"Summarize the key topics, concepts, definitions, and takeaways of this section:"
+                    )
+                    sec_res = await llm.generate(
+                        system=MAP_REDUCE_SECTION_PROMPT,
+                        messages=[{"role": "user", "content": sec_prompt}],
+                        max_tokens=1000,
+                        temperature=0.1,
+                    )
+                    group_summaries.append(
+                        f"### Section: Pages {start_p}–{end_p}\n{clean_inline_sources(sec_res)}"
+                    )
+
+                all_sec_text = "\n\n".join(group_summaries)
+                combine_prompt = (
+                    f"Section Summaries of {doc.file_name}:\n\n{all_sec_text}\n\n"
+                    f"Synthesize into a structured master overview:"
                 )
-                try:
-                    # Clean potential markdown fences
-                    clean_json = response_str.strip()
-                    if clean_json.startswith("```"):
-                        clean_json = clean_json.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-                    parsed = json.loads(clean_json)
-                    doc.summary = parsed.get("summary", "Document successfully indexed.")
-                    doc.suggested_questions = parsed.get("suggested_questions", [])
-                except Exception as json_err:
-                    logger.warning(f"Could not parse LLM summary JSON: {json_err}")
-                    doc.summary = f"Summary for {doc.file_name}: Extracted {doc.page_count} pages and {len(chunk_items)} semantic chunks ready for retrieval."
-                    doc.suggested_questions = [
-                        f"What are the main topics in {doc.file_name}?",
-                        "What are the key conclusions?",
-                    ]
+                structured_summary = await llm.generate(
+                    system=MAP_REDUCE_COMBINE_PROMPT,
+                    messages=[{"role": "user", "content": combine_prompt}],
+                    max_tokens=3000,
+                    temperature=0.1,
+                )
+                doc.summary = clean_inline_sources(structured_summary)
+                doc.suggested_questions = [
+                    f"What are the main topics covered across {doc.file_name}?",
+                    "What key framework activities and methodologies are outlined?",
+                    "How are procedures and engineering phases implemented?",
+                    "What review questions or conclusions are described?",
+                ]
             else:
-                doc.summary = f"Document {doc.file_name} indexed with {doc.page_count} pages."
-                doc.suggested_questions = []
+                sample_text = "\n\n".join([f"[Page {p.page_number}]\n{p.text}" for p in pages if p.text.strip()])[:6000]
+                if sample_text:
+                    response_str = await llm.generate(
+                        system=DOCUMENT_SUMMARY_PROMPT,
+                        messages=[{"role": "user", "content": f"Document text:\n{sample_text}"}],
+                        max_tokens=600,
+                    )
+                    try:
+                        clean_json = response_str.strip()
+                        if clean_json.startswith("```"):
+                            clean_json = clean_json.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                        parsed = json.loads(clean_json)
+                        doc.summary = clean_inline_sources(parsed.get("summary", "Document successfully indexed."))
+                        doc.suggested_questions = parsed.get("suggested_questions", [])
+                    except Exception as json_err:
+                        logger.warning(f"Could not parse LLM summary JSON: {json_err}")
+                        doc.summary = clean_inline_sources(response_str)
+                        doc.suggested_questions = [
+                            f"What are the main topics in {doc.file_name}?",
+                            "What are the key conclusions?",
+                        ]
+                else:
+                    doc.summary = f"Document {doc.file_name} indexed with {doc.page_count} pages."
+                    doc.suggested_questions = []
 
             doc.status = "ready"
             doc.error_message = None
